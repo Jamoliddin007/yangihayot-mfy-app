@@ -26,7 +26,7 @@ export function clearDevTelegramId() {
 }
 
 function buildHeaders(isFormData: boolean): Record<string, string> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { "ngrok-skip-browser-warning": "true" };
   if (!isFormData) headers["Content-Type"] = "application/json";
 
   const initData = getInitDataRaw();

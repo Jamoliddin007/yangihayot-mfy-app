@@ -13,6 +13,7 @@ export function getSocket(): Socket {
     auth: initData ? { initData } : { devTelegramId },
     autoConnect: true,
     transports: ["websocket"],
+    extraHeaders: { "ngrok-skip-browser-warning": "true" },
   });
 
   return socket;
