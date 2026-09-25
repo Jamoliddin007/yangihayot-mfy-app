@@ -25,9 +25,9 @@ export function clearDevTelegramId() {
   localStorage.removeItem("dev_telegram_id");
 }
 
-function buildHeaders(isFormData: boolean): Record<string, string> {
+function buildHeaders(hasJsonBody: boolean): Record<string, string> {
   const headers: Record<string, string> = { "ngrok-skip-browser-warning": "true" };
-  if (!isFormData) headers["Content-Type"] = "application/json";
+  if (hasJsonBody) headers["Content-Type"] = "application/json";
 
   const initData = getInitDataRaw();
   if (initData) {
@@ -41,10 +41,10 @@ function buildHeaders(isFormData: boolean): Record<string, string> {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const isFormData = options.body instanceof FormData;
+  const hasJsonBody = options.body !== undefined && !(options.body instanceof FormData);
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: { ...buildHeaders(isFormData), ...(options.headers as Record<string, string> | undefined) },
+    headers: { ...buildHeaders(hasJsonBody), ...(options.headers as Record<string, string> | undefined) },
   });
 
   if (!res.ok) {

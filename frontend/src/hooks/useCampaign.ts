@@ -55,17 +55,30 @@ export function useCampaign() {
     };
   }, [refetch]);
 
-  const startTask = useCallback(async (taskId: string) => {
-    return api.post<CallTask>(`/api/tasks/${taskId}/start`);
+  const applyTask = useCallback((task: CallTask) => {
+    setCampaign((prev) => {
+      if (!prev || prev.id !== task.campaignId) return prev;
+      return { ...prev, tasks: prev.tasks.map((t) => (t.id === task.id ? task : t)) };
+    });
   }, []);
+
+  const startTask = useCallback(async (taskId: string) => {
+    const task = await api.post<CallTask>(`/api/tasks/${taskId}/start`);
+    applyTask(task);
+    return task;
+  }, [applyTask]);
 
   const resultTask = useCallback(async (taskId: string, status: Extract<CallStatus, "REACHED" | "NO_ANSWER" | "PHONE_OFF">) => {
-    return api.post<CallTask>(`/api/tasks/${taskId}/result`, { status });
-  }, []);
+    const task = await api.post<CallTask>(`/api/tasks/${taskId}/result`, { status });
+    applyTask(task);
+    return task;
+  }, [applyTask]);
 
   const resetTask = useCallback(async (taskId: string) => {
-    return api.post<CallTask>(`/api/tasks/${taskId}/reset`);
-  }, []);
+    const task = await api.post<CallTask>(`/api/tasks/${taskId}/reset`);
+    applyTask(task);
+    return task;
+  }, [applyTask]);
 
   const createCampaign = useCallback(async (title: string, description?: string) => {
     const created = await api.post<Campaign>("/api/campaigns", { title, description });
