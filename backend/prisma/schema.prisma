@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  BOSS
+  EMPLOYEE
+}
+
+enum CallStatus {
+  PENDING      // hali qo'ng'iroq qilinmagan (qizil)
+  IN_PROGRESS  // hozir kimdir qo'ng'iroq qilyapti (sariq)
+  REACHED      // javob berdi (yashil)
+  NO_ANSWER    // ko'tarmadi (to'q sariq)
+  PHONE_OFF    // telefon o'chiq (kulrang)
+}
+
+enum CampaignStatus {
+  ACTIVE
+  CLOSED
+}
+
+model User {
+  id          String    @id @default(cuid())
+  telegramId  BigInt?   @unique
+  fullName    String
+  phone       String?
+  role        Role      @default(EMPLOYEE)
+  isActive    Boolean   @default(true)
+  inviteCode  String?   @unique
+  linkedAt    DateTime?
+  createdAt   DateTime  @default(now())
+
+  createdCampaigns CallCampaign[] @relation("CampaignCreator")
+  assignedTasks    CallTask[]     @relation("TaskAssignee")
+  callEvents       CallEvent[]
+}
+
+model Mahalla {
+  id            String   @id @default(cuid())
+  name          String   // MFY nomi
+  chairmanName  String   // Rais F.I.Sh
+  phone         String   // Rais telefon raqami
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  callTasks CallTask[]
+}
+
+model CallCampaign {
+  id          String         @id @default(cuid())
+  title       String
+  description String?
+  status      CampaignStatus @default(ACTIVE)
+  createdById String
+  createdBy   User           @relation("CampaignCreator", fields: [createdById], references: [id])
+  createdAt   DateTime       @default(now())
+
+  tasks CallTask[]
+}
+
+model CallTask {
+  id          String     @id @default(cuid())
+  campaignId  String
+  campaign    CallCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  mahallaId   String
+  mahalla     Mahalla    @relation(fields: [mahallaId], references: [id])
+  status      CallStatus @default(PENDING)
+  assignedToId String?
+  assignedTo  User?      @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  calledAt    DateTime?
+  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime   @default(now())
+
+  events CallEvent[]
+
+  @@unique([campaignId, mahallaId])
+}
+
+model CallEvent {
+  id         String     @id @default(cuid())
+  callTaskId String
+  callTask   CallTask   @relation(fields: [callTaskId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User       @relation(fields: [userId], references: [id])
+  status     CallStatus
+  createdAt  DateTime   @default(now())
+}
