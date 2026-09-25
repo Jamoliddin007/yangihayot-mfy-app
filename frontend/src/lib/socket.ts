@@ -9,7 +9,7 @@ export function getSocket(): Socket {
   const initData = getInitDataRaw();
   const devTelegramId = getDevTelegramId();
 
-  socket = io(API_URL, {
+  socket = io(API_URL || undefined, {
     auth: initData ? { initData } : { devTelegramId },
     autoConnect: true,
     transports: ["websocket"],
