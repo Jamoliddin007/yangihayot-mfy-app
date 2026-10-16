@@ -410,3 +410,7 @@ Branch: `feature/assigned-mfy-redesign`
 - Admin sinovi: yangi foydalanuvchi admin emas; qo'lda admin qilingan begona akkaunt qayta ishga tushganda tushiriladi; begona so'rovi tasdiq kutadi.
 - Bot oqimi 15/15, backend unit testlari 12/12.
 
+### 2026-10-16 — Server to'lovi eslatmasi
+- `deploy/payment-reminder.sh`: har oyning 12-sanasi soat 09:00 da (to'lovdan 3 kun oldin) platforma egasiga bot orqali Telegram'da eslatma. Serverda cron orqali ishlaydi; to'lov kuni `.env`dagi `PAYMENT_DAY` (standart 15).
+- Contabo keyingi to'lovi: 2026-11-15 → birinchi eslatma 2026-11-12.
+
