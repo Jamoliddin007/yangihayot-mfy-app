@@ -30,7 +30,9 @@ Yangihayot tuman mahalla uyushmasi uchun Telegram Mini App:
 |---|---|
 | Hosting | **Contabo Cloud VPS 4** (4 vCPU, 8 GB RAM, 100 GB SSD), EU (Germaniya), Ubuntu 24.04 — $7.39/oy, oylik obuna (2026-10-16 xarid qilindi) |
 | Domen | **https://yangihayot-mfy.duckdns.org** (DuckDNS, bepul) |
-| Server IP | ⏳ Contabo emailini kutilmoqda → DuckDNS'da `current ip` ga yozish kerak |
+| Server IP | **158.220.100.206** (DuckDNS shu IP'ga yo'naltirilgan) |
+| Holat | ✅ **Ishlayapti** (2026-10-16 dan). HTTPS: Let's Encrypt, avtomatik yangilanadi |
+| Kirish | Faqat SSH kalit bilan: `ssh root@158.220.100.206`. Parol bilan kirish o'chirilgan. Favqulodda: Contabo panelidagi VNC konsoli + root parol |
 | Papka (serverda) | `/opt/mfy-app` (kod + `.env`), zaxiralar: `/opt/mfy-backups` |
 
 ## Arxitektura (oddiy tilda)
@@ -125,11 +127,11 @@ Har qanday holat ──"Qayta boshlash" (faqat boshliq)──► PENDING
 - Har bir o'zgarish `CallEvent` jadvaliga yoziladi (kim, qachon, qaysi holat).
 
 ## Ochiq masalalar / keyingi qadamlar
-- [x] Server xarid qilindi (Contabo), domen olindi (DuckDNS), deploy fayllari tayyor.
-- [ ] **Server IP'ni kutish** → DuckDNS'ga yozish → serverni sozlash → ma'lumotlarni ko'chirish → ishga tushirish.
-- [ ] BotFather'da Mini App manzilini `https://yangihayot-mfy.duckdns.org` ga o'zgartirish (agar sozlangan bo'lsa).
-- [ ] `GROUP_CHAT_ID` ni sozlash (guruh xabarlari).
-- [ ] Lokal ishlab chiqish uchun alohida test bot.
+- [x] Server xarid qilindi, sozlandi, ma'lumotlar ko'chirildi — **ilova serverda ishlayapti**.
+- [ ] **Telegram'da qo'lda sinash**: botga `/start` → "Ilovani ochish" → qo'ng'iroq/natija, tungi rejim, guruh xabari.
+- [ ] BotFather'da menyu tugmasi / Mini App manzili sozlangan bo'lsa — `https://yangihayot-mfy.duckdns.org` ga o'zgartirish.
+- [ ] Lokal ishlab chiqish uchun alohida test bot (asosiy bot tokeni bilan lokal backendni ishga tushirmang!).
+- [ ] Contabo obunasi oylik ($7.39) — keyingi to'lov 2026-11-15.
 - [ ] Hisobot: yakunlangan vazifalar tarixi va Excel eksport (backendda ExcelJS bor).
 - [ ] Vazifa yo'nalishlari bo'yicha integratsion testlar (hozir faqat auth testlari).
 - [ ] Ixtiyoriy: Telegraf → grammY (zamonaviyroq bot kutubxonasi) — shoshilinch emas.
@@ -221,3 +223,28 @@ Branch: `feature/deploy-vps`
 - Webhook va HTTPS haqiqiy serverda tekshiriladi (lokalda haqiqiy botning webhook'ini o'zgartirmaslik uchun sinalmadi).
 
 **Keyingi qadam**: Contabo emailidan server IP → DuckDNS'ga yozish → serverni sozlash.
+
+### 2026-10-16 — 🚀 Ilova doimiy serverda ishga tushdi
+**Manzil: https://yangihayot-mfy.duckdns.org** · Server: Contabo, `158.220.100.206`
+
+**Qilingan ishlar**
+- PR #3 (deploy fayllari) `main` ga birlashtirildi.
+- DuckDNS `yangihayot-mfy.duckdns.org` → `158.220.100.206`.
+- Contabo'da Ubuntu 24.04 qayta o'rnatildi: root foydalanuvchi + SSH kalit (`jamoliddin-laptop`). Sabab: buyurtmadagi parol bilan kirib bo'lmadi (`l`/`I` harflari skrinshotda farqlanmasdi), server bo'sh edi — qayta o'rnatish eng toza yo'l bo'ldi.
+- `deploy/setup-server.sh`: Docker, firewall (faqat 22/80/443), fail2ban, avtomatik xavfsizlik yangilanishlari, Toshkent vaqti, kunlik backup (03:00).
+- **SSH'ga parol bilan kirish o'chirildi** — faqat kalit. (Eski parol chatda/skrinshotda ko'ringan edi — endi ahamiyatsiz.)
+- `.env` serverga yuklandi (faqat root o'qiy oladi), DB uchun yangi tasodifiy parol.
+- Birinchi deploy: DB migratsiyasi, frontend, Caddy HTTPS sertifikati, bot **webhook**.
+- **Lokal ma'lumotlar ko'chirildi**: 5 foydalanuvchi, 30 mahalla, 1 vazifa, 29 qo'ng'iroq yozuvi, 18 hodisa — sonlar lokal bilan bir xil.
+
+**Tekshiruv** ✅
+- `https://` sahifa 200, `/health` 200, `http` → `https` avtomatik (308).
+- Telegram `getWebhookInfo`: to'g'ri URL, xato yo'q. Soxta webhook so'rovi → 401.
+- Backup qo'lda sinaldi: `/opt/mfy-backups/mfy-2026-10-16_13-16.sql.gz`.
+- Firewall faol, SSH faqat kalit bilan (parol bilan urinish — `Permission denied (publickey)`).
+
+**O'rganilgan saboqlar**
+- Contabo qayta o'rnatishdan keyin cloud-init oxirida serverni **yana bir marta qayta yuklaydi** — SSH birinchi ochilganda darhol ishga tushirilgan skript uzilib qoldi. Endi: `cloud-init ... finished` ni kutib, keyin sozlash.
+- `docker run --env-file` `.env`dagi qo'shtirnoqlarni qiymatga qo'shib yuboradi — production'da `DATABASE_URL` ni compose o'zi beradi, muammo yo'q.
+
+**⚠️ Muhim**: endi lokal kompyuterda backend'ni **asosiy bot tokeni bilan ishga tushirmang** — polling serverdagi webhook'ni o'chirib yuboradi va bot javob bermay qoladi.
