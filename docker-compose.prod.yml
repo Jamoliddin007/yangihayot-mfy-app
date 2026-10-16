@@ -1,0 +1,65 @@
+# Serverdagi to'liq tizim: PostgreSQL + ilova + Caddy (avtomatik HTTPS).
+# Ishga tushirish: docker compose -f docker-compose.prod.yml up -d --build
+# Sozlamalar: shu papkadagi .env (namuna: deploy/.env.example)
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mfy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD .env da yo'q}
+      POSTGRES_DB: manage_boss
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    # Port tashqariga ochilmaydi — DB faqat ichki tarmoqda, ilova uchun
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mfy -d manage_boss"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *logging
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://mfy:${POSTGRES_PASSWORD}@db:5432/manage_boss?schema=public
+      FRONTEND_URL: https://${DOMAIN:?DOMAIN .env da yo'q}
+      PORT: "4000"
+      NODE_ENV: production
+      BOT_MODE: webhook
+      DEV_AUTH: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    logging: *logging
+
+volumes:
+  pg_data:
+  caddy_data:
+  caddy_config:

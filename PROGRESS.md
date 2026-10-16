@@ -25,17 +25,29 @@ Yangihayot tuman mahalla uyushmasi uchun Telegram Mini App:
 | Frontend | React 19 + Vite 8 + Tailwind v4 | Yengil (~87 KB gzip), tez |
 | Telegram | Rasmiy `telegram-web-app.js` | Auth (initData), mavzu ranglari, tebranish, tasdiqlash oynalari |
 
+## Server
+| | |
+|---|---|
+| Hosting | **Contabo Cloud VPS 4** (4 vCPU, 8 GB RAM, 100 GB SSD), EU (Germaniya), Ubuntu 24.04 — $7.39/oy, oylik obuna (2026-10-16 xarid qilindi) |
+| Domen | **https://yangihayot-mfy.duckdns.org** (DuckDNS, bepul) |
+| Server IP | ⏳ Contabo emailini kutilmoqda → DuckDNS'da `current ip` ga yozish kerak |
+| Papka (serverda) | `/opt/mfy-app` (kod + `.env`), zaxiralar: `/opt/mfy-backups` |
+
 ## Arxitektura (oddiy tilda)
 ```
-Telegram ilova ──► https://<domen yoki ngrok>  ──►  Backend (port 4000)
-                                                    ├─ /           → tayyor frontend (frontend/dist)
-                                                    ├─ /api/...    → REST API
-                                                    ├─ /socket.io  → real vaqt yangilanishlari
-                                                    └─ Telegram bot (polling)
-                                                         │
-                                                    PostgreSQL (Docker, 5433)
+Telegram ilova ──► https://yangihayot-mfy.duckdns.org
+                        │
+                   Caddy (80/443, avtomatik HTTPS sertifikati)
+                        │
+                   Ilova konteyneri (port 4000, tashqariga yopiq)
+                    ├─ /                  → tayyor frontend
+                    ├─ /api/...           → REST API
+                    ├─ /socket.io         → real vaqt yangilanishlari
+                    └─ /telegram/webhook  → Telegram bot (webhook)
+                        │
+                   PostgreSQL konteyneri (tashqariga yopiq) ── har kuni 03:00 zaxira nusxa
 ```
-Production'da **bitta port, bitta server**: backend frontend'ni ham o'zi beradi.
+Hammasi `docker-compose.prod.yml` da. Server qayta yonsa, hammasi o'zi ishga tushadi.
 
 ## Xavfsizlik qanday ishlaydi
 - Har bir so'rov Telegram imzolagan `initData` bilan keladi, backend uni bot tokeni bilan tekshiradi (soxtalashtirib bo'lmaydi, 24 soatdan eski bo'lsa rad etiladi).
@@ -53,11 +65,25 @@ npx prisma migrate deploy
 cd ../frontend && npm install
 ```
 
-### Production / Telegram'da sinash (tavsiya etiladi — tez)
+### Serverga yangi versiya chiqarish
+Kod `main` ga birlashtirilgach, serverda bitta buyruq:
 ```bash
-cd frontend && npm run build               # frontend/dist yaratiladi
-cd ../backend && npm run dev               # yoki: npm run build && npm start
-ngrok http 4000                            # FRONTEND_URL ni shu https manzilga qo'ying
+ssh root@<SERVER_IP> /opt/mfy-app/deploy/deploy.sh
+```
+U GitHub'dan oxirgi kodni oladi, Docker image'ni qayta build qiladi va ilovani qayta ishga tushiradi (DB migratsiyalari avtomatik).
+
+### Serverni birinchi marta sozlash (bir marta)
+1. `deploy/setup-server.sh` — Docker, firewall (faqat 22/80/443), fail2ban, avtomatik xavfsizlik yangilanishlari, kunlik backup cron, kodni `/opt/mfy-app` ga yuklash.
+2. `/opt/mfy-app/.env` ni to'ldirish (namuna: `deploy/.env.example`).
+3. Eski ma'lumotlarni ko'chirish (lokal DB → server).
+4. `deploy/deploy.sh`.
+
+### Server bilan ishlash
+```bash
+cd /opt/mfy-app
+docker compose -f docker-compose.prod.yml ps            # holat
+docker compose -f docker-compose.prod.yml logs -f app   # ilova loglari
+./deploy/backup.sh                                       # qo'lda zaxira nusxa
 ```
 
 ### Lokal ishlab chiqish (kod o'zgarishini darhol ko'rish)
@@ -66,6 +92,8 @@ cd backend && DEV_AUTH=true npm run dev    # 4000-port
 cd frontend && npm run dev                 # 5173-port, /api va /socket.io avtomatik 4000 ga proxy
 ```
 Brauzerda `http://localhost:5173` → Telegram ID kiritib kirish (faqat `DEV_AUTH=true` bo'lsa).
+
+> ⚠️ **Server ishga tushgandan keyin** lokal backendni **asosiy bot tokeni bilan ishga tushirmang**: lokal bot polling rejimida Telegram'dagi webhook'ni o'chirib yuboradi va serverdagi bot javob bermay qoladi. Lokal test uchun BotFather'dan alohida **test bot** oling va lokal `.env` ga uning tokenini yozing.
 
 ### Testlar
 ```bash
@@ -82,6 +110,9 @@ cd backend && npm test                     # initData imzosini tekshirish testla
 | `GROUP_CHAT_ID` | Xabarlar boradigan guruh. Olish: botni guruhga qo'shib `/chatid` yozing |
 | `DEV_AUTH` | `true` — faqat lokal test uchun |
 | `FRONTEND_DIST` | Ixtiyoriy, frontend build papkasi |
+| `BOT_MODE` | `polling` (lokal, standart) yoki `webhook` (server — compose o'zi qo'yadi) |
+
+Serverdagi `.env` boshqacha va soddaroq — `deploy/.env.example` ga qarang (`DOMAIN`, `POSTGRES_PASSWORD`, `BOT_TOKEN`, `BOT_USERNAME`, `GROUP_CHAT_ID`).
 
 ## Vazifa holatlari (qoidalar)
 ```
@@ -94,7 +125,11 @@ Har qanday holat ──"Qayta boshlash" (faqat boshliq)──► PENDING
 - Har bir o'zgarish `CallEvent` jadvaliga yoziladi (kim, qachon, qaysi holat).
 
 ## Ochiq masalalar / keyingi qadamlar
-- [ ] **Doimiy server (VPS)** — hozir ngrok vaqtinchalik. VPS'da: HTTPS domen, `NODE_ENV=production`, process manager (pm2/systemd), bot **webhook** rejimi.
+- [x] Server xarid qilindi (Contabo), domen olindi (DuckDNS), deploy fayllari tayyor.
+- [ ] **Server IP'ni kutish** → DuckDNS'ga yozish → serverni sozlash → ma'lumotlarni ko'chirish → ishga tushirish.
+- [ ] BotFather'da Mini App manzilini `https://yangihayot-mfy.duckdns.org` ga o'zgartirish (agar sozlangan bo'lsa).
+- [ ] `GROUP_CHAT_ID` ni sozlash (guruh xabarlari).
+- [ ] Lokal ishlab chiqish uchun alohida test bot.
 - [ ] Hisobot: yakunlangan vazifalar tarixi va Excel eksport (backendda ExcelJS bor).
 - [ ] Vazifa yo'nalishlari bo'yicha integratsion testlar (hozir faqat auth testlari).
 - [ ] Ixtiyoriy: Telegraf → grammY (zamonaviyroq bot kutubxonasi) — shoshilinch emas.
@@ -161,4 +196,28 @@ Branch: `feature/hardening-and-perf`
 
 **Ishga tushirishdagi o'zgarish**: endi `cd frontend && npm run build`, keyin backend, ngrok esa **4000** portga (`ngrok http 4000`). `.env`da `DEV_AUTH` yozilmagan bo'lsa — brauzer orqali dev-kirish ishlamaydi (bu to'g'ri).
 
-**Holat**: commit `eeaaabe` → `feature/hardening-and-perf` branch'ga push qilindi. PR `feature/dev-single-origin-proxy` (PR #1) ustiga ochiladi — PR #1 birlashtirilgach GitHub uni avtomatik `main` ga o'tkazadi.
+**Holat**: ✅ PR #1 va PR #2 (https://github.com/Jamoliddin007/yangihayot-mfy-app/pull/2) `main` ga birlashtirildi. Barcha yuqoridagi o'zgarishlar endi `main` da.
+
+### 2026-10-16 — Doimiy serverga (Contabo VPS) tayyorgarlik
+Branch: `feature/deploy-vps`
+
+**Qarorlar**
+- ngrok o'rniga doimiy server: **Contabo Cloud VPS 4**, EU, Ubuntu 24.04, **1 oylik** obuna ($7.39/oy, QQS bilan). Avto-backup va boshqa pullik qo'shimchalar olinmadi — zaxira nusxani o'zimiz sozlaymiz.
+- Domen: **yangihayot-mfy.duckdns.org** (bepul). Telegram Mini App HTTPS talab qiladi — sertifikatni Caddy avtomatik oladi.
+- Loyiha tugashini kutmasdan server olindi: Contabo serverni tayyorlashga vaqt ketadi, doimiy manzil sinovni osonlashtiradi, deploy muammolari erta chiqadi.
+
+**Qilingan ishlar**
+- **Bot webhook rejimi** (`BOT_MODE=webhook`): Telegram yangilanishlarni `/telegram/webhook` ga yuboradi; soxta so'rovlar maxfiy token orqali rad etiladi (401). Lokal ishlab chiqishda avvalgidek polling.
+- **`Dockerfile`**: frontend + backend bitta image'da; ishga tushganda DB migratsiyalari avtomatik; root bo'lmagan foydalanuvchi bilan ishlaydi.
+- **`docker-compose.prod.yml`**: PostgreSQL + ilova + Caddy. DB va ilova porti tashqariga yopiq, faqat 80/443 ochiq. Loglar hajmi cheklangan (10 MB × 3).
+- **`deploy/setup-server.sh`**: serverni bir marta sozlash (Docker, firewall, fail2ban, avto-yangilanishlar, Toshkent vaqti, kunlik backup).
+- **`deploy/deploy.sh`**: yangi versiyani bitta buyruq bilan chiqarish.
+- **`deploy/backup.sh`**: har kuni 03:00 da DB zaxira nusxasi, 14 kun saqlanadi.
+- Test fayllari production build'ga kirmaydi.
+
+**Tekshiruv**
+- Docker image lokal build qilindi va ishga tushirildi: migratsiyalar qo'llandi, frontend berildi, `/health` 200, auth'siz `/api/me` 401. ✅
+- `tsc` xatosiz, skriptlar sintaksisi tekshirildi.
+- Webhook va HTTPS haqiqiy serverda tekshiriladi (lokalda haqiqiy botning webhook'ini o'zgartirmaslik uchun sinalmadi).
+
+**Keyingi qadam**: Contabo emailidan server IP → DuckDNS'ga yozish → serverni sozlash.

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import Fastify from "fastify";
@@ -8,6 +9,7 @@ import multipart from "@fastify/multipart";
 import fastifyStatic from "@fastify/static";
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
+import type { Update } from "telegraf/types";
 import { prisma } from "./db.js";
 import { createBot } from "./bot.js";
 import { setupSocket } from "./socket.js";
@@ -26,7 +28,9 @@ import { taskRoutes } from "./routes/tasks.routes.js";
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const PORT = Number(process.env.PORT ?? 4000);
-const FRONTEND_URL = process.env.FRONTEND_URL ?? "http://localhost:5173";
+const FRONTEND_URL = (process.env.FRONTEND_URL ?? "http://localhost:5173").replace(/\/$/, "");
+const BOT_MODE = process.env.BOT_MODE ?? "polling";
+const WEBHOOK_PATH = "/telegram/webhook";
 // `npm run build` (frontend) natijasi. Mavjud bo'lsa, backend frontend'ni ham o'zi beradi —
 // bitta port, bitta tunnel/domen, Vite dev-server kerak emas.
 const FRONTEND_DIST = path.resolve(process.env.FRONTEND_DIST ?? path.join(import.meta.dirname, "../../frontend/dist"));
@@ -103,19 +107,40 @@ async function main() {
     fastify.log.warn(`Frontend build topilmadi (${FRONTEND_DIST}) — faqat API ishlaydi. Frontend uchun: cd frontend && npm run build`);
   }
 
-  // MUHIM: bot.launch() ni await qilmaslik kerak — Telegraf'da bu promise
-  // faqat bot to'xtaganda (stop chaqirilganda) resolve bo'ladi, aks holda server
-  // hech qachon tinglashni boshlamaydi.
-  bot.launch().catch((err) => {
-    fastify.log.error(err, "Bot ishga tushishida xatolik");
-  });
-  fastify.log.info("Telegram bot ishga tushdi");
+  // Serverda (BOT_MODE=webhook): Telegram yangilanishlarni o'zi shu manzilga POST qiladi —
+  // doimiy so'rov yubormaydi, tezroq va yengilroq. Lokal ishlab chiqishda — polling.
+  // Maxfiy token bot tokenidan hosil qilinadi: soxta so'rovlar 401 oladi.
+  const useWebhook = BOT_MODE === "webhook";
+  const webhookSecret = crypto.createHash("sha256").update(BOT_TOKEN!).digest("hex").slice(0, 32);
+  if (useWebhook) {
+    fastify.post(WEBHOOK_PATH, async (request, reply) => {
+      if (request.headers["x-telegram-bot-api-secret-token"] !== webhookSecret) {
+        return reply.code(401).send();
+      }
+      await bot.handleUpdate(request.body as Update);
+      return reply.code(200).send();
+    });
+  }
 
   await fastify.listen({ port: PORT, host: "0.0.0.0" });
 
+  if (useWebhook) {
+    await bot.telegram.setWebhook(`${FRONTEND_URL}${WEBHOOK_PATH}`, { secret_token: webhookSecret });
+    fastify.log.info(`Telegram bot webhook rejimida: ${FRONTEND_URL}${WEBHOOK_PATH}`);
+  } else {
+    // MUHIM: bot.launch() ni await qilmaslik kerak — Telegraf'da bu promise
+    // faqat bot to'xtaganda (stop chaqirilganda) resolve bo'ladi.
+    // DIQQAT: polling ishga tushganda Telegram'dagi webhook o'chiriladi — serverdagi bot bilan
+    // bir xil tokenni lokal ishlatsangiz, server botni "yo'qotadi". Lokal uchun alohida test bot oling.
+    bot.launch().catch((err) => {
+      fastify.log.error(err, "Bot ishga tushishida xatolik");
+    });
+    fastify.log.info("Telegram bot polling rejimida ishga tushdi");
+  }
+
   const shutdown = async (signal: string) => {
     fastify.log.info(`${signal} qabul qilindi, to'xtatilmoqda...`);
-    bot.stop(signal);
+    if (!useWebhook) bot.stop(signal);
     await fastify.close(); // HTTP + Socket.io ulanishlarini yopadi
     await prisma.$disconnect();
     process.exit(0);
