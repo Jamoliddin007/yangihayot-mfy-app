@@ -2,123 +2,123 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import type { CallStatus, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { authenticate, requireBoss } from "../authPlugin.js";
+import { authenticate, requireBoss, type CurrentUser } from "../authPlugin.js";
 import { taskInclude } from "../taskInclude.js";
+import { resultMessage } from "../messages.js";
 
 const resultSchema = z.object({
   status: z.enum(["REACHED", "NO_ANSWER", "PHONE_OFF"]),
 });
 
-type ResultStatus = z.infer<typeof resultSchema>["status"];
+// REACHED — yakuniy holat (xato bo'lsa boshliq "Qayta boshlash" bilan qaytaradi)
+const OPEN_STATUSES: CallStatus[] = ["PENDING", "IN_PROGRESS", "NO_ANSWER", "PHONE_OFF"];
 
-const RESULT_MESSAGE: Record<ResultStatus, (employee: string, mahalla: string) => string> = {
-  REACHED: (employee, mahalla) => `✅ ${employee} — "${mahalla}" MFY bilan bog'landi.`,
-  NO_ANSWER: (employee, mahalla) => `📵 ${employee} — "${mahalla}" MFY raisi qo'ng'iroqni ko'tarmadi.`,
-  PHONE_OFF: (employee, mahalla) => `⚠️ ${employee} — "${mahalla}" MFY raisining telefoni o'chiq.`,
-};
+// Xodim faqat o'ziga biriktirilgan vazifa bilan ishlaydi; boshliq — istalgani bilan.
+// Faqat faol topshiriqdagi vazifalar o'zgartiriladi.
+function editableBy(user: CurrentUser): Prisma.CallTaskWhereInput {
+  return {
+    campaign: { status: "ACTIVE" },
+    ...(user.role === "BOSS" ? {} : { assignedToId: user.id }),
+  };
+}
 
-// Natija faqat shu holatlardan belgilanishi mumkin. REACHED — yakuniy holat
-// (xato bosilgan bo'lsa boshliq "Qayta boshlash" orqali PENDING'ga qaytaradi).
-const RESULT_FROM: CallStatus[] = ["IN_PROGRESS", "NO_ANSWER", "PHONE_OFF"];
-
-const activeCampaign = { campaign: { status: "ACTIVE" } } satisfies Prisma.CallTaskWhereInput;
-
-// updateMany 0 qator qaytarganda foydalanuvchiga aniq sababni aytish uchun
-async function explainRejection(id: string, reply: FastifyReply) {
+// updateMany 0 qator qaytarganda foydalanuvchiga aniq sababni aytish
+async function explainRejection(id: string, user: CurrentUser, reply: FastifyReply) {
   const task = await prisma.callTask.findUnique({ where: { id }, include: { campaign: true } });
   if (!task) return reply.code(404).send({ error: "Vazifa topilmadi" });
-  if (task.campaign.status !== "ACTIVE") return reply.code(409).send({ error: "Bu vazifa yakunlangan" });
-  return reply.code(409).send({ error: "Vazifa holati o'zgargan, sahifani yangilang" });
+  if (task.campaign.status !== "ACTIVE") return reply.code(409).send({ error: "Bu topshiriq yakunlangan" });
+  if (user.role !== "BOSS" && task.assignedToId !== user.id) {
+    return reply.code(403).send({ error: "Bu MFY sizga biriktirilmagan" });
+  }
+  if (task.status === "REACHED") return reply.code(409).send({ error: "Bu MFY bilan allaqachon bog'lanilgan" });
+  return reply.code(409).send({ error: "Holat o'zgargan, sahifani yangilang" });
 }
 
 export async function taskRoutes(fastify: FastifyInstance) {
   fastify.addHook("preHandler", authenticate);
 
-  // Xodim qo'ng'iroq qilishni boshlaydi: PENDING -> IN_PROGRESS.
-  // updateMany + where status:PENDING orqali poyga holati (race condition) serverda oldini olinadi:
-  // ikkita xodim bir vaqtda bossa ham faqat birinchisi muvaffaqiyatli band qiladi.
+  // Qo'ng'iroq boshlandi — boshqalar (boshliq) kim hozir gaplashayotganini ko'radi
   fastify.post("/api/tasks/:id/start", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const userId = request.currentUser!.id;
+    const user = request.currentUser!;
 
     const task = await prisma.$transaction(async (tx) => {
       const { count } = await tx.callTask.updateMany({
-        where: { id, status: "PENDING", ...activeCampaign },
-        data: { status: "IN_PROGRESS", assignedToId: userId, calledAt: new Date() },
+        where: { id, status: { in: ["PENDING", "NO_ANSWER", "PHONE_OFF"] }, ...editableBy(user) },
+        data: { status: "IN_PROGRESS", calledAt: new Date() },
       });
       if (count === 0) return null;
-      await tx.callEvent.create({ data: { callTaskId: id, userId, status: "IN_PROGRESS" } });
+      await tx.callEvent.create({ data: { callTaskId: id, userId: user.id, status: "IN_PROGRESS" } });
       return tx.callTask.findUniqueOrThrow({ where: { id }, include: taskInclude });
     });
 
     if (!task) {
-      const existing = await prisma.callTask.findUnique({ where: { id }, include: { campaign: true } });
-      if (existing && existing.campaign.status === "ACTIVE" && existing.status !== "PENDING") {
-        return reply.code(409).send({ error: "Bu rais allaqachon band qilingan" });
-      }
-      return explainRejection(id, reply);
+      // Qayta bosish (allaqachon IN_PROGRESS) — xato emas, joriy holatni qaytaramiz
+      const current = await prisma.callTask.findFirst({ where: { id, status: "IN_PROGRESS", ...editableBy(user) }, include: taskInclude });
+      if (current) return current;
+      return explainRejection(id, user, reply);
     }
 
     fastify.io.to("dashboard").emit("task:update", task);
-    void fastify.notifyGroup(`📞 ${task.assignedTo?.fullName} — "${task.mahalla.name}" MFY raisiga qo'ng'iroq qilmoqda...`);
     return task;
   });
 
-  // Xodim qo'ng'iroq natijasini belgilaydi (faqat o'zi band qilgan vazifaga; boshliq — istalganiga)
+  // Natija: guruhga xabar ketadi
   fastify.post("/api/tasks/:id/result", async (request, reply) => {
     const { id } = request.params as { id: string };
     const { status } = resultSchema.parse(request.body);
-    const { id: userId, role } = request.currentUser!;
+    const user = request.currentUser!;
 
     const task = await prisma.$transaction(async (tx) => {
       const { count } = await tx.callTask.updateMany({
-        where: {
-          id,
-          status: { in: RESULT_FROM },
-          ...activeCampaign,
-          ...(role === "BOSS" ? {} : { assignedToId: userId }),
-        },
-        data: { status },
+        where: { id, status: { in: OPEN_STATUSES }, ...editableBy(user) },
+        data: { status, calledAt: new Date() },
       });
       if (count === 0) return null;
-      await tx.callEvent.create({ data: { callTaskId: id, userId, status } });
+      await tx.callEvent.create({ data: { callTaskId: id, userId: user.id, status } });
       return tx.callTask.findUniqueOrThrow({ where: { id }, include: taskInclude });
     });
 
-    if (!task) {
-      const existing = await prisma.callTask.findUnique({ where: { id } });
-      if (existing && role !== "BOSS" && existing.assignedToId !== userId) {
-        return reply.code(403).send({ error: "Bu vazifa sizga tegishli emas" });
-      }
-      return explainRejection(id, reply);
-    }
+    if (!task) return explainRejection(id, user, reply);
 
     fastify.io.to("dashboard").emit("task:update", task);
-    if (task.assignedTo) {
-      void fastify.notifyGroup(RESULT_MESSAGE[status](task.assignedTo.fullName, task.mahalla.name));
-    }
+
+    const [reached, total] = await Promise.all([
+      prisma.callTask.count({ where: { campaignId: task.campaignId, status: "REACHED" } }),
+      prisma.callTask.count({ where: { campaignId: task.campaignId } }),
+    ]);
+    void fastify.notifyGroup(
+      resultMessage({
+        status,
+        mahallaName: task.mahalla.name,
+        chairmanName: task.mahalla.chairmanName,
+        employeeName: user.fullName,
+        reached,
+        total,
+        at: new Date(),
+      }),
+    );
     return task;
   });
 
-  // Boss vazifani qayta PENDING holatiga qaytaradi (xato bosilgan bo'lsa)
+  // Boshliq natijani bekor qiladi (xato belgilangan bo'lsa). Mas'ul xodim o'zgarmaydi.
   fastify.post("/api/tasks/:id/reset", { preHandler: requireBoss }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const userId = request.currentUser!.id;
+    const user = request.currentUser!;
 
     const task = await prisma.$transaction(async (tx) => {
       const { count } = await tx.callTask.updateMany({
-        where: { id, status: { not: "PENDING" }, ...activeCampaign },
-        data: { status: "PENDING", assignedToId: null, calledAt: null },
+        where: { id, status: { not: "PENDING" }, campaign: { status: "ACTIVE" } },
+        data: { status: "PENDING", calledAt: null },
       });
       if (count === 0) return null;
-      await tx.callEvent.create({ data: { callTaskId: id, userId, status: "PENDING" } });
+      await tx.callEvent.create({ data: { callTaskId: id, userId: user.id, status: "PENDING" } });
       return tx.callTask.findUniqueOrThrow({ where: { id }, include: taskInclude });
     });
 
-    if (!task) return explainRejection(id, reply);
+    if (!task) return explainRejection(id, user, reply);
 
     fastify.io.to("dashboard").emit("task:update", task);
-    void fastify.notifyGroup(`↺ Boshliq "${task.mahalla.name}" MFY vazifasini qayta boshladi.`);
     return task;
   });
 }

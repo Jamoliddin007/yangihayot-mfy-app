@@ -39,6 +39,7 @@ model User {
   createdCampaigns CallCampaign[] @relation("CampaignCreator")
   assignedTasks    CallTask[]     @relation("TaskAssignee")
   callEvents       CallEvent[]
+  mahallas         Mahalla[]      @relation("MahallaAssignee")
 }
 
 model Mahalla {
@@ -49,8 +50,20 @@ model Mahalla {
   sortOrder     Int      @default(0)
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
+  // Doimiy mas'ul xodim: yangi topshiriqda shu MFY vazifasi avtomatik unga beriladi
+  assignedToId  String?
+  assignedTo    User?    @relation("MahallaAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   callTasks CallTask[]
+
+  @@index([assignedToId])
+}
+
+// Ilovadan o'zgartiriladigan sozlamalar (masalan, xabarlar boradigan guruh ID'si)
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
 
 model CallCampaign {

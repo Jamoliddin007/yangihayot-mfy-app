@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { authenticate, requireBoss } from "../authPlugin.js";
 import { taskInclude } from "../taskInclude.js";
+import { finalReportMessage } from "../messages.js";
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -40,7 +41,10 @@ export async function campaignRoutes(fastify: FastifyInstance) {
       const active = await tx.callCampaign.findFirst({ where: { status: "ACTIVE" } });
       if (active) return { error: "Avval joriy vazifani yakunlang" } as const;
 
-      const mahallas = await tx.mahalla.findMany({ where: { isActive: true } });
+      const mahallas = await tx.mahalla.findMany({
+        where: { isActive: true },
+        include: { assignedTo: { select: { isActive: true } } },
+      });
       if (mahallas.length === 0) return { error: "Avval mahalla raislarini qo'shing" } as const;
 
       const campaign = await tx.callCampaign.create({
@@ -48,7 +52,13 @@ export async function campaignRoutes(fastify: FastifyInstance) {
           title: body.title,
           description: body.description || undefined,
           createdById: request.currentUser!.id,
-          tasks: { create: mahallas.map((m) => ({ mahallaId: m.id })) },
+          // Har bir MFY doimiy mas'ul xodimiga beriladi (faol bo'lmasa — biriktirilmagan, boshliq ko'radi)
+          tasks: {
+            create: mahallas.map((m) => ({
+              mahallaId: m.id,
+              assignedToId: m.assignedTo?.isActive ? m.assignedToId : null,
+            })),
+          },
         },
         include: campaignInclude,
       });
@@ -60,7 +70,6 @@ export async function campaignRoutes(fastify: FastifyInstance) {
     }
 
     fastify.io.to("dashboard").emit("campaign:created", result.campaign);
-    void fastify.notifyGroup(`🆕 Yangi vazifa: "${result.campaign.title}" (${result.campaign.tasks.length} ta MFY)`);
     return reply.code(201).send(result.campaign);
   });
 
@@ -75,11 +84,14 @@ export async function campaignRoutes(fastify: FastifyInstance) {
     }
 
     const campaign = await prisma.callCampaign.findUniqueOrThrow({ where: { id } });
-    const reached = await prisma.callTask.count({ where: { campaignId: id, status: "REACHED" } });
-    const total = await prisma.callTask.count({ where: { campaignId: id } });
+    const tasks = await prisma.callTask.findMany({
+      where: { campaignId: id },
+      include: taskInclude,
+      orderBy: { mahalla: { sortOrder: "asc" } },
+    });
 
     fastify.io.to("dashboard").emit("campaign:closed", campaign);
-    void fastify.notifyGroup(`🏁 "${campaign.title}" vazifasi yakunlandi: ${reached}/${total} MFY bilan bog'lanildi.`);
+    void fastify.notifyGroup(finalReportMessage(campaign.title, tasks));
     return campaign;
   });
 

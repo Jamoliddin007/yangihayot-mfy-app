@@ -8,6 +8,11 @@ export const API_URL = import.meta.env.VITE_API_URL ?? "";
 // Faqat development uchun: Telegram tashqarisida (brauzerda) sinash imkonini beradi.
 // Backendda NODE_ENV=production bo'lsa bu header e'tiborga olinmaydi.
 export function getDevTelegramId(): string | null {
+  // Faqat `npm run dev`da: ?dev=<id> bilan to'g'ridan-to'g'ri kirish (avtomatik test va skrinshotlar uchun)
+  if (import.meta.env.DEV) {
+    const fromUrl = new URLSearchParams(window.location.search).get("dev");
+    if (fromUrl) localStorage.setItem("dev_telegram_id", fromUrl);
+  }
   return localStorage.getItem("dev_telegram_id");
 }
 

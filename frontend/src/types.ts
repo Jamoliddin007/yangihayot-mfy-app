@@ -1,12 +1,18 @@
 export type Role = "BOSS" | "EMPLOYEE";
 
 export type CallStatus = "PENDING" | "IN_PROGRESS" | "REACHED" | "NO_ANSWER" | "PHONE_OFF";
+export type ResultStatus = Extract<CallStatus, "REACHED" | "NO_ANSWER" | "PHONE_OFF">;
 
 export interface CurrentUser {
   id: string;
   telegramId: string;
   fullName: string;
   role: Role;
+}
+
+export interface UserRef {
+  id: string;
+  fullName: string;
 }
 
 export interface Mahalla {
@@ -16,11 +22,8 @@ export interface Mahalla {
   phone: string;
   sortOrder: number;
   isActive: boolean;
-}
-
-export interface AssignedUser {
-  id: string;
-  fullName: string;
+  assignedToId: string | null;
+  assignedTo?: UserRef | null;
 }
 
 export interface CallTask {
@@ -30,7 +33,7 @@ export interface CallTask {
   mahalla: Mahalla;
   status: CallStatus;
   assignedToId: string | null;
-  assignedTo: AssignedUser | null;
+  assignedTo: UserRef | null;
   calledAt: string | null;
   updatedAt: string;
 }
@@ -53,41 +56,32 @@ export interface Employee {
   inviteCode: string | null;
   linkedAt: string | null;
   createdAt: string;
+  inviteLink: string | null;
+  _count: { mahallas: number };
 }
 
 export const STATUS_LABEL: Record<CallStatus, string> = {
-  PENDING: "Kutilmoqda",
+  PENDING: "Navbatda",
   IN_PROGRESS: "Qo'ng'iroq qilinmoqda",
   REACHED: "Bog'landi",
   NO_ANSWER: "Ko'tarmadi",
   PHONE_OFF: "Telefon o'chiq",
 };
 
-export const STATUS_STYLE: Record<CallStatus, { dot: string; card: string; badge: string }> = {
-  // Shaffof (x/10, x/15) fonlar kunduzgi va tungi mavzuda bir xil yaxshi ko'rinadi
-  PENDING: {
-    dot: "bg-red-500",
-    card: "border-l-4 border-l-red-400 bg-surface",
-    badge: "bg-red-500/15 text-red-600",
-  },
-  IN_PROGRESS: {
-    dot: "bg-amber-500",
-    card: "border-l-4 border-l-amber-400 bg-amber-500/10",
-    badge: "bg-amber-500/15 text-amber-600",
-  },
-  REACHED: {
-    dot: "bg-emerald-500",
-    card: "border-l-4 border-l-emerald-400 bg-emerald-500/10",
-    badge: "bg-emerald-500/15 text-emerald-600",
-  },
-  NO_ANSWER: {
-    dot: "bg-orange-500",
-    card: "border-l-4 border-l-orange-400 bg-orange-500/10",
-    badge: "bg-orange-500/15 text-orange-600",
-  },
-  PHONE_OFF: {
-    dot: "bg-gray-400",
-    card: "border-l-4 border-l-gray-400 bg-surface",
-    badge: "bg-gray-500/15 text-muted",
-  },
+// Rang — matn rangi va nuqta uchun (Tailwind sinflari)
+export const STATUS_TONE: Record<CallStatus, { text: string; dot: string }> = {
+  PENDING: { text: "text-hint", dot: "border-[1.5px] border-hint" },
+  IN_PROGRESS: { text: "text-live", dot: "bg-live" },
+  REACHED: { text: "text-ok", dot: "bg-ok" },
+  NO_ANSWER: { text: "text-warn", dot: "bg-warn" },
+  PHONE_OFF: { text: "text-off", dot: "bg-off" },
+};
+
+// Ro'yxatda qaysi tartibda chiqadi: avval bajarilishi kerak bo'lganlar
+export const STATUS_ORDER: Record<CallStatus, number> = {
+  IN_PROGRESS: 0,
+  PENDING: 1,
+  NO_ANSWER: 2,
+  PHONE_OFF: 3,
+  REACHED: 4,
 };

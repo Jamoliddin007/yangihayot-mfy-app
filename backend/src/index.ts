@@ -11,7 +11,7 @@ import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import type { Update } from "telegraf/types";
 import { prisma } from "./db.js";
-import { createBot } from "./bot.js";
+import { configureBotUi, createBot } from "./bot.js";
 import { setupSocket } from "./socket.js";
 import { createGroupNotifier } from "./groupNotify.js";
 import { DEV_AUTH_ENABLED } from "./authPlugin.js";
@@ -71,7 +71,12 @@ async function main() {
   fastify.decorate("io", io);
 
   const bot = createBot(BOT_TOKEN!, FRONTEND_URL);
-  fastify.decorate("notifyGroup", createGroupNotifier(bot));
+  fastify.decorate(
+    "notifyGroup",
+    BOT_MODE === "off"
+      ? async (html: string) => void fastify.log.info({ html }, "Guruh xabari (BOT_MODE=off, yuborilmadi)")
+      : createGroupNotifier(bot),
+  );
 
   await fastify.register(authRoutes);
   await fastify.register(mahallaRoutes);
@@ -124,9 +129,17 @@ async function main() {
 
   await fastify.listen({ port: PORT, host: "0.0.0.0" });
 
+  const botRuns = BOT_MODE !== "off";
   if (useWebhook) {
-    await bot.telegram.setWebhook(`${FRONTEND_URL}${WEBHOOK_PATH}`, { secret_token: webhookSecret });
+    await bot.telegram.setWebhook(`${FRONTEND_URL}${WEBHOOK_PATH}`, {
+      secret_token: webhookSecret,
+      allowed_updates: ["message", "my_chat_member"],
+    });
+    await configureBotUi(bot, FRONTEND_URL).catch((err) => fastify.log.error(err, "Bot menyusini sozlashda xatolik"));
     fastify.log.info(`Telegram bot webhook rejimida: ${FRONTEND_URL}${WEBHOOK_PATH}`);
+  } else if (!botRuns) {
+    // Lokal ishlab chiqish: bot umuman ishga tushmaydi, serverdagi webhook'ga tegilmaydi
+    fastify.log.info("BOT_MODE=off — Telegram bot ishga tushirilmadi");
   } else {
     // MUHIM: bot.launch() ni await qilmaslik kerak — Telegraf'da bu promise
     // faqat bot to'xtaganda (stop chaqirilganda) resolve bo'ladi.
@@ -140,7 +153,7 @@ async function main() {
 
   const shutdown = async (signal: string) => {
     fastify.log.info(`${signal} qabul qilindi, to'xtatilmoqda...`);
-    if (!useWebhook) bot.stop(signal);
+    if (!useWebhook && botRuns) bot.stop(signal);
     await fastify.close(); // HTTP + Socket.io ulanishlarini yopadi
     await prisma.$disconnect();
     process.exit(0);

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
-import type { Campaign, CallStatus, CallTask } from "../types";
+import type { Campaign, CallTask, ResultStatus } from "../types";
 
 export function useCampaign() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -47,13 +47,18 @@ export function useCampaign() {
       connectedBefore = true;
     };
 
+    // Boshliq MFY mas'ulini o'zgartirsa — kim nimaga qo'ng'iroq qilishi o'zgaradi
+    const handleChanged = () => void refetch();
+
     socket.on("connect", handleConnect);
+    socket.on("campaign:changed", handleChanged);
     socket.on("task:update", applyTask);
     socket.on("campaign:created", setCampaign);
     socket.on("campaign:closed", handleCampaignClosed);
 
     return () => {
       socket.off("connect", handleConnect);
+      socket.off("campaign:changed", handleChanged);
       socket.off("task:update", applyTask);
       socket.off("campaign:created", setCampaign);
       socket.off("campaign:closed", handleCampaignClosed);
@@ -66,7 +71,7 @@ export function useCampaign() {
     return task;
   }, [applyTask]);
 
-  const resultTask = useCallback(async (taskId: string, status: Extract<CallStatus, "REACHED" | "NO_ANSWER" | "PHONE_OFF">) => {
+  const resultTask = useCallback(async (taskId: string, status: ResultStatus) => {
     const task = await api.post<CallTask>(`/api/tasks/${taskId}/result`, { status });
     applyTask(task);
     return task;

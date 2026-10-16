@@ -10,10 +10,10 @@ Bu fayl ikki qismdan iborat:
 
 ## Loyiha haqida
 Yangihayot tuman mahalla uyushmasi uchun Telegram Mini App:
-- **Boshliq** "vazifa" yaratadi (masalan: *"Bugun 09:00 majlis haqida xabar berish"*) — unga barcha faol mahalla raislari avtomatik qo'shiladi.
-- **Xodimlar** (maksimal 5 ta) raislarga qo'ng'iroq qiladi va natijani belgilaydi: ✅ bog'landi / 📵 ko'tarmadi / ⚠️ telefon o'chiq.
-- Hamma holatni **real vaqtda** ko'radi (rangli kartochkalar). Bitta raisga ikki xodim bir vaqtda qo'ng'iroq qila olmaydi.
-- Har bir amal haqida Telegram **guruhiga** avtomatik xabar boradi.
+- Har bir **MFY bitta xodimga doimiy biriktirilgan** (hozir: 3 xodim × 10 MFY). Boshliq istalgan vaqtda qayta biriktira oladi.
+- **Boshliq** topshiriq beradi (masalan: *"Bugun 09:00 majlis haqida xabar berish"*) — har bir xodim o'z MFY raislariga qo'ng'iroq qiladi.
+- Xodim natijani belgilaydi: bog'landi / ko'tarmadi / telefon o'chiq. Hamma holatni **real vaqtda** ko'radi.
+- **Telegram guruhiga** faqat ikki xil xabar boradi: har bir natija va topshiriq yakunlanganda yakuniy hisobot.
 
 ## Texnologiyalar
 | Qism | Texnologiya | Nega |
@@ -90,10 +90,10 @@ docker compose -f docker-compose.prod.yml logs -f app   # ilova loglari
 
 ### Lokal ishlab chiqish (kod o'zgarishini darhol ko'rish)
 ```bash
-cd backend && DEV_AUTH=true npm run dev    # 4000-port
+cd backend && BOT_MODE=off DEV_AUTH=true npm run dev    # 4000-port, bot o'chiq (serverdagi botga tegmaydi)
 cd frontend && npm run dev                 # 5173-port, /api va /socket.io avtomatik 4000 ga proxy
 ```
-Brauzerda `http://localhost:5173` → Telegram ID kiritib kirish (faqat `DEV_AUTH=true` bo'lsa).
+Brauzerda `http://localhost:5173/?dev=<telegram_id>` — to'g'ridan-to'g'ri o'sha foydalanuvchi bo'lib kirish (faqat `npm run dev` va `DEV_AUTH=true`). `BOT_MODE=off`da guruh xabarlari yuborilmaydi — logga yoziladi.
 
 > ⚠️ **Server ishga tushgandan keyin** lokal backendni **asosiy bot tokeni bilan ishga tushirmang**: lokal bot polling rejimida Telegram'dagi webhook'ni o'chirib yuboradi va serverdagi bot javob bermay qoladi. Lokal test uchun BotFather'dan alohida **test bot** oling va lokal `.env` ga uning tokenini yozing.
 
@@ -112,23 +112,33 @@ cd backend && npm test                     # initData imzosini tekshirish testla
 | `GROUP_CHAT_ID` | Xabarlar boradigan guruh. Olish: botni guruhga qo'shib `/chatid` yozing |
 | `DEV_AUTH` | `true` — faqat lokal test uchun |
 | `FRONTEND_DIST` | Ixtiyoriy, frontend build papkasi |
-| `BOT_MODE` | `polling` (lokal, standart) yoki `webhook` (server — compose o'zi qo'yadi) |
+| `BOT_MODE` | `off` (lokal — tavsiya), `polling` yoki `webhook` (server — compose o'zi qo'yadi) |
 
 Serverdagi `.env` boshqacha va soddaroq — `deploy/.env.example` ga qarang (`DOMAIN`, `POSTGRES_PASSWORD`, `BOT_TOKEN`, `BOT_USERNAME`, `GROUP_CHAT_ID`).
 
 ## Vazifa holatlari (qoidalar)
 ```
-PENDING (qizil) ──"Qo'ng'iroq qilish"──► IN_PROGRESS (sariq)
-IN_PROGRESS / NO_ANSWER / PHONE_OFF ──natija──► REACHED (yashil) | NO_ANSWER (to'q sariq) | PHONE_OFF (kulrang)
-Har qanday holat ──"Qayta boshlash" (faqat boshliq)──► PENDING
+Navbatda ──"Qo'ng'iroq"──► Qo'ng'iroq qilinmoqda ──natija──► Bog'landi | Ko'tarmadi | Telefon o'chiq
+Ko'tarmadi / O'chiq ──qayta qo'ng'iroq──► ...          Bog'landi = yakuniy
+Har qanday holat ──"Natijani bekor qilish" (faqat boshliq)──► Navbatda
 ```
-- Natijani faqat vazifani band qilgan xodim (yoki boshliq) belgilaydi. `REACHED` — yakuniy.
+- Topshiriq yaratilganda har bir MFY vazifasi o'sha MFY'ning **mas'ul xodimiga** beriladi.
+- Xodim **faqat o'ziga biriktirilgan** MFY'lar bilan ishlaydi (boshqalarini faqat ko'radi). Boshliq — hammasi bilan.
+- MFY mas'uli o'zgarsa, joriy topshiriqdagi hali bog'lanilmagan vazifa ham yangi xodimga darhol o'tadi.
+- Xodimni o'chirishdan oldin uning MFY'larini boshqa xodimga o'tkazish shart (aks holda MFY'lar egasiz qoladi).
 - Bir vaqtda faqat **bitta faol vazifa**. Yakunlangan vazifada hech narsa o'zgartirib bo'lmaydi.
 - Har bir o'zgarish `CallEvent` jadvaliga yoziladi (kim, qachon, qaysi holat).
 
+## Telegram guruhi
+1. Botni guruhga qo'shing — bot o'zi qanday ulashni yozadi.
+2. **Boshliq** guruhda `/ulash` yozadi → natijalar va hisobotlar shu guruhga boradi. (Guruh ID'si bazada saqlanadi, `.env`ni o'zgartirish shart emas.)
+3. Xabarlar: har bir natija (holat, MFY, rais, xodim, vaqt, jami son) va yakuniy hisobot (xodimlar bo'yicha, bog'lanilmagan MFY'lar ro'yxati bilan).
+
 ## Ochiq masalalar / keyingi qadamlar
 - [x] Server xarid qilindi, sozlandi, ma'lumotlar ko'chirildi — **ilova serverda ishlayapti**.
-- [ ] **Telegram'da qo'lda sinash**: botga `/start` → "Ilovani ochish" → qo'ng'iroq/natija, tungi rejim, guruh xabari.
+- [ ] **MFY ↔ xodim ro'yxati** (foydalanuvchidan kutilmoqda) → serverda biriktirish → yangi versiyani deploy qilish.
+- [ ] Botni guruhga qo'shib, boshliq `/ulash` yozadi.
+- [ ] **Telegram'da qo'lda sinash** (yangi UI).
 - [ ] BotFather'da menyu tugmasi / Mini App manzili sozlangan bo'lsa — `https://yangihayot-mfy.duckdns.org` ga o'zgartirish.
 - [ ] Lokal ishlab chiqish uchun alohida test bot (asosiy bot tokeni bilan lokal backendni ishga tushirmang!).
 - [ ] Contabo obunasi oylik ($7.39) — keyingi to'lov 2026-11-15.
@@ -248,3 +258,38 @@ Branch: `feature/deploy-vps`
 - `docker run --env-file` `.env`dagi qo'shtirnoqlarni qiymatga qo'shib yuboradi — production'da `DATABASE_URL` ni compose o'zi beradi, muammo yo'q.
 
 **⚠️ Muhim**: endi lokal kompyuterda backend'ni **asosiy bot tokeni bilan ishga tushirmang** — polling serverdagi webhook'ni o'chirib yuboradi va bot javob bermay qoladi.
+
+
+### 2026-10-16 — MFY'larni xodimlarga biriktirish va UI'ni to'liq qayta loyihalash
+Branch: `feature/assigned-mfy-redesign`
+
+**Talablar (foydalanuvchidan)**
+- 30 MFY 3 xodimga 10 tadan **doimiy** taqsimlangan; hammasi dinamik bo'lsin. → Boshliq qayta biriktira oladi.
+- Guruhga: har bir natija + yakuniy hisobot (boshqa xabarlar yo'q).
+- UI: sahifalar orasida surib o'tish; emoji/stikerlar yo'q; o'chirish tugmalari doim ko'rinib turmasin; senior darajada, "shablon"ga o'xshamasin.
+
+**Backend**
+- `Mahalla.assignedToId` (doimiy mas'ul xodim) va `Setting` jadvali — migratsiya `mahalla_assignee_and_settings`.
+- Topshiriq yaratilganda vazifalar mas'ul xodimlarga avtomatik beriladi. "Kim birinchi bossa" mantiqi olib tashlandi.
+- Xodim faqat o'z MFY'si bilan ishlaydi; boshliq — hammasi bilan. Barcha o'tishlar atomik.
+- Mas'ulni o'zgartirish faol topshiriqdagi bog'lanilmagan vazifalarga ham ta'sir qiladi; barcha ochiq ilovalar avtomatik yangilanadi.
+- Xodimning barcha MFY'larini boshqa xodimga o'tkazish; MFY'si bor xodimni o'chirish taqiqlangan.
+- Excel import: 4-ustun — mas'ul xodim ismi (bor MFY'larning mas'ulini ham yangilaydi).
+- Guruh: `/ulash` buyrug'i (faqat boshliq), guruh ID bazada; guruh supergroup'ga aylansa yangi ID avtomatik saqlanadi. Bot guruhga qo'shilganda yo'riqnoma yozadi.
+- Guruh xabarlari HTML formatda, emojisiz: natija (holat, MFY, rais, xodim, Toshkent vaqti, jami) va xodimlar bo'yicha guruhlangan yakuniy hisobot.
+- Bot menyusi (`/start` shaxsiy chatda, `/ulash` guruh adminlarida) va "Ilova" tugmasi avtomatik sozlanadi — BotFather'da qo'lda qilish shart emas.
+- `BOT_MODE=off` — lokal ishlab chiqishda bot va guruh xabarlari butunlay o'chiq.
+
+**Frontend (to'liq qayta yozildi)**
+- Telegram/iOS uslubidagi guruhlangan ro'yxatlar, Telegram mavzu ranglari (kunduzgi/tungi), emoji yo'q — holatlar rang + matn bilan.
+- Sahifalar barmoq bilan chapga/o'ngga suriladi: boshliq — Topshiriq / Raislar / Xodimlar; xodim — Mening MFY'larim / Jamoa.
+- Har qanday element bosilganda pastdan oyna ochiladi; o'chirish va boshqa xavfli amallar faqat shu oyna ichida, eng pastda, tasdiqlash bilan.
+- Telegram'ning native pastki tugmasi (MainButton) va "Orqaga" tugmasi; ro'yxatni aylantirganda ilova yopilib ketmaydi.
+- Qo'ng'iroq oynasi: katta qo'ng'iroq tugmasi (+998 bilan; bir nechta raqam bo'lsa — har biriga alohida), uchta natija tugmasi.
+- Raislar: qidiruv, xodimlar bo'yicha guruhlash, mas'ulni tanlash. Xodimlar: avatar, MFY soni, taklif havolasini Telegram orqali yuborish.
+
+**Tekshiruv**
+- Backend: 8/8 test (initData + guruh xabarlari formati), `tsc` xatosiz.
+- Lokal API'da jarayon sinaldi: o'z MFY'si 200, begona MFY 403, bog'langanni qayta o'zgartirish 409, xodim reset 403, xodim `/api/users` 403, ikkinchi faol topshiriq 409, MFY'si bor xodimni o'chirish 400, o'tkazish → 9 MFY + faol vazifalar ko'chdi, yakuniy hisobot to'g'ri.
+- UI headless Chrome'da telefon o'lchamida (390×844) 12 ta skrinshot bilan tekshirildi, kunduzgi va tungi mavzu. Topilib tuzatilgan: CSS qatlami ranglarni bosib ketgani, "navbatda"/"o'chiq" bir xil ko'ringani, telefon raqamidagi ortiqcha vergul va +998 yo'qligi.
+- ⚠️ Hali serverga chiqarilmagan — MFY ↔ xodim ro'yxati kelgach birga deploy qilinadi.
