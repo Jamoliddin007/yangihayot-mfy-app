@@ -363,3 +363,4 @@ Branch: `feature/assigned-mfy-redesign`
 - API sinovi 16/16: olish, band MFY, bir vaqtda bosish (poyga), faqat o'zinikini bo'shatish, faol topshiriq vazifalarining o'tishi, yopiq taqsimotda taqiq, xodim sozlamani o'zgartira olmasligi.
 - Backend unit testlari 12/12; frontend build; telefon o'lchamida skrinshotlar. Topilib tuzatilgan: bo'sh MFY'lar ro'yxati pastda qolib ketardi → tepaga ko'chirildi.
 
+- Serverga chiqarildi (deploy oldidan zaxira olindi): migratsiya qo'llandi, Yangihayot'da taqsimot yoqilgan, 30/30 MFY avvalgidek xodimlarda, xatolar yo'q.
