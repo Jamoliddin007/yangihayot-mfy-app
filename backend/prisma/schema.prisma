@@ -51,6 +51,9 @@ model Organization {
   timezone      String    @default("Asia/Tashkent")
   // Natijalar va hisobotlar yuboriladigan Telegram guruhi (boshliq guruhda /ulash yozadi)
   groupChatId   String?
+  // true — xodimlar bo'sh MFY'larni o'zlari tanlab oladi (va o'zinikini bo'shatadi);
+  // false — taqsimot yopiq, faqat boshliq biriktiradi
+  selfAssign    Boolean   @default(true)
   requestedById String?
   requestedBy   User?     @relation("OrgRequester", fields: [requestedById], references: [id], onDelete: SetNull)
   approvedAt    DateTime?

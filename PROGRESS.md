@@ -13,7 +13,7 @@ Mahalla uyushmalari uchun **ko'p tashkilotli platforma** (Telegram bot + Mini Ap
 
 Ish jarayoni:
 1. **Boshliq** topshiriq beradi: *nima* (yig'ilish / tadbir / boshqa), *qachon* (sana va vaqt), *qayerda*. Har bir xodimga botdan shaxsiy xabar boradi.
-2. Har bir **MFY doimiy bitta xodimga biriktirilgan** (Yangihayot: 3 xodim × 10 MFY). Xodim o'z MFY raislariga qo'ng'iroq qilib, natijani belgilaydi: bog'landi / ko'tarmadi / telefon o'chiq + ixtiyoriy **izoh** ("rais kasalxonada").
+2. **MFY'larni xodimlar o'zaro bo'lishib oladi**: boshliq Excel orqali umumiy ro'yxatni yuklaydi → har bir xodim "MFY'lar" bo'limida bo'sh MFY'larni belgilab o'ziga oladi → keyingi xodimga qolgani ko'rinadi. Nechtadan va qaysilari — tashkilot o'zi hal qiladi (qat'iy son yo'q). Boshliq taqsimotni yopib qo'yishi, qo'lda biriktirishi yoki qaytadan boshlashi mumkin. Xodim o'z MFY raislariga qo'ng'iroq qilib, natijani belgilaydi: bog'landi / ko'tarmadi / telefon o'chiq + ixtiyoriy **izoh** ("rais kasalxonada").
 3. Xodimlar bir-birining MFY'lari va holatini ko'radi; kerak bo'lsa **"Yordam berish"** orqali boshqaning MFY'siga qo'ng'iroq qiladi — boshliq va guruh buni ko'radi.
 4. **Telegram guruhiga**: har bir natija + yakunlanganda xodimlar bo'yicha **yakuniy hisobot**.
 
@@ -23,7 +23,7 @@ Platforma egasi (Jamoliddin) — yangi tashkilotlarni tasdiqlaydi, boshliq takli
  └─ Tashkilot (masalan, Yangihayot tumani MFY uyushmasi)
      ├─ Boshliq(lar)  — topshiriq beradi, MFY va xodimlarni boshqaradi
      ├─ Xodimlar      — o'z MFY'lariga qo'ng'iroq qiladi, boshqalarga yordam beradi
-     ├─ MFY'lar       — har biri bitta mas'ul xodimga biriktirilgan (sektor raqami bilan)
+     ├─ MFY'lar       — har biri bitta mas'ul xodimda yoki bo'sh; xodimlar o'zlari tanlaydi (sektor raqami bilan)
      ├─ Topshiriqlar  — bir vaqtda bittasi faol; tarix saqlanadi
      └─ Telegram guruhi (/ulash)
 ```
@@ -334,3 +334,32 @@ Branch: `feature/assigned-mfy-redesign`
 - Takliflar/tashkilotlar sinovi (`scripts/smoke-invites.ts`): boshliq taklifi, bir martalik havola, o'rinbosarni egallash, tashkilot so'rovi/tasdiqlash, ikki tashkilot a'zosi uchun akkaunt birlashtirish, muddati o'tgan/bekor qilingan havola, to'xtatilgan tashkilot — hammasi o'tdi.
 - API + real vaqt sinovi (28 tekshiruv): tashkilotlar izolyatsiyasi (ma'lumot, tahrir, socket hodisalari), yordam, izoh, ruxsatlar, himoyalar — hammasi o'tdi.
 - UI: telefon o'lchamida 13 skrinshot (kunduzgi/tungi). Topilib tuzatilgan: uzun holat nomi rais ismini qisqartirgani, tungi rejimda tanlov ko'rinmagani, "Qo'ng'iroq qildi" yorlig'i, xodim xabaridagi takror so'z.
+
+### 2026-10-16 — MFY'larni xodimlar o'zlari bo'lishib oladi (universal taqsimot)
+Branch: `feature/assigned-mfy-redesign`
+
+**Talab (foydalanuvchidan)**
+- "Har bir xodim 10 ta MFY" — faqat Yangihayot uchun. Boshqa tumanlarda xodimlar o'zaro kelishadi: nechtadan va qaysi MFY kimda. Excel'dan umumiy ro'yxat yuklangach, har bir xodim o'ziga tegishlilarini belgilab (tick) tasdiqlasin, keyingisiga qolgani ko'rinsin.
+
+**Qilindi**
+- Xodim ilovasida yangi **"MFY'lar"** bo'limi (3-sahifa):
+  - Tepada taqsimot holati: nechtasi bo'lingan, nechtasi sizda / boshqalarda / bo'sh.
+  - **Bo'sh MFY'lar** sektorlar bo'yicha; doiracha bilan belgilanadi, sektor uchun "Hammasi". Pastki tugma "N ta MFY'ni olish" → tasdiqlash oynasi.
+  - **Mening MFY'larim**; bo'shatish yashirin — "Bo'shatish" bosilgandagina belgilash chiqadi (qizil).
+  - **Boshqa xodimlarda** — kim nechta va qaysilarini olgan (bosilsa ro'yxat ochiladi).
+  - MFY'si yo'q xodim ilovani ochsa (faol topshiriq bo'lmasa) — darhol shu bo'limga o'tadi.
+- Boshliq "MFY'lar" bo'limida: **"Xodimlar o'zlari tanlaydi"** o'chirib-yoqgichi (bo'lib bo'lingach yopib qo'yish mumkin) va **"Taqsimotni qaytadan boshlash"** (hamma MFY bo'shaydi, tasdiqlash bilan). Qo'lda biriktirish avvalgidek ishlaydi.
+- Excel'da 4-ustun (mas'ul xodim) endi ixtiyoriy ma'noda: yozilmasa, xodimlar o'zlari tanlaydi.
+- Hamma ekran **jonli** yangilanadi: kimdir MFY olsa/bo'shatsa, boshqalarda darhol ko'rinadi.
+- Faol topshiriq paytida MFY olinsa/bo'shatilsa — hali bog'lanilmagan vazifa ham yangi egasiga o'tadi (bo'shatilgani "biriktirilmagan"ga, boshqalar yordam bera oladi). Bog'lanilganlari tarix sifatida o'zgarmaydi.
+- Yangihayot: hozirgi 10 tadan taqsimot saqlanib qoldi. Xohlasa, boshliq "Taqsimotni qaytadan boshlash" bilan xodimlarga qaytadan tanlatishi mumkin.
+
+**Texnik**
+- `Organization.selfAssign` (standart: yoqilgan) — migratsiya `20261016180000_org_self_assign`.
+- API: `POST /api/mahalla/claim`, `POST /api/mahalla/release`, `POST /api/mahalla/unassign-all` (boshliq), `GET/PATCH /api/mahalla/settings`; socket hodisasi `mahalla:changed`.
+- Ikki xodim bir vaqtda bir MFY'ni bossa — MFY faqat birinchisiga tegadi (har bir MFY "hali bo'sh bo'lsa" sharti bilan alohida yangilanadi); ikkinchisiga "N tasini boshqa xodim olib bo'ldi" deyiladi.
+
+**Tekshiruv**
+- API sinovi 16/16: olish, band MFY, bir vaqtda bosish (poyga), faqat o'zinikini bo'shatish, faol topshiriq vazifalarining o'tishi, yopiq taqsimotda taqiq, xodim sozlamani o'zgartira olmasligi.
+- Backend unit testlari 12/12; frontend build; telefon o'lchamida skrinshotlar. Topilib tuzatilgan: bo'sh MFY'lar ro'yxati pastda qolib ketardi → tepaga ko'chirildi.
+

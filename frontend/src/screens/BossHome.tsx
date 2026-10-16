@@ -3,13 +3,14 @@ import type { CampaignHistoryItem, CampaignKind, Mahalla, Member, Role, SessionU
 import { KIND_LABEL, ROLE_LABEL } from "../types";
 import { useCampaign, type NewCampaign } from "../hooks/useCampaign";
 import { useList } from "../hooks/useList";
+import { useMahallas } from "../hooks/useMahallas";
 import { api } from "../lib/api";
 import { formatDay, formatSchedule, toDateInput } from "../lib/format";
 import { confirmAction, haptic } from "../lib/telegram";
 import { showToast } from "../lib/toast";
 import { Pager } from "../ui/Pager";
-import { Avatar, EmptyState, Row, Section, TextField } from "../ui/List";
-import { PlusIcon, SearchIcon, UploadIcon } from "../ui/Icons";
+import { Avatar, EmptyState, Row, SearchField, Section, Switch, TextField } from "../ui/List";
+import { PlusIcon, UploadIcon } from "../ui/Icons";
 import { PrimaryAction } from "../ui/nativeButtons";
 import { reachedCount } from "../ui/Status";
 import { TaskRow, TaskSheet } from "../sheets/TaskSheet";
@@ -21,7 +22,7 @@ import { CampaignSummary, groupByAssignee } from "./shared";
 export function BossHome({ user }: { user: SessionUser }) {
   const [page, setPage] = useState(0);
   const campaignState = useCampaign();
-  const mahallas = useList<Mahalla>("/api/mahalla");
+  const mahallas = useMahallas();
   const members = useList<Member>("/api/members");
 
   const reloadPeople = () => {
@@ -32,7 +33,7 @@ export function BossHome({ user }: { user: SessionUser }) {
   return (
     <Pager tabs={["Topshiriq", "MFY'lar", "Xodimlar"]} index={page} onIndexChange={setPage}>
       <TaskPage user={user} active={page === 0} state={campaignState} mahallas={mahallas.items} />
-      <MahallaPage mahallas={mahallas.items} members={members.items} loading={mahallas.loading} onChanged={reloadPeople} />
+      <MahallaPage state={mahallas} members={members.items} onChanged={reloadPeople} />
       <MembersPage user={user} members={members.items} mahallas={mahallas.items} loading={members.loading} onChanged={reloadPeople} />
     </Pager>
   );
@@ -249,7 +250,8 @@ function CreateCampaign({ active, mahallas, onCreate }: { active: boolean; mahal
 
 // ---------- 2. MFY'lar ----------
 
-function MahallaPage({ mahallas, members, loading, onChanged }: { mahallas: Mahalla[]; members: Member[]; loading: boolean; onChanged: () => void }) {
+function MahallaPage({ state, members, onChanged }: { state: ReturnType<typeof useMahallas>; members: Member[]; onChanged: () => void }) {
+  const { items: mahallas, loading, selfAssign, changeSelfAssign, unassignAll } = state;
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<Mahalla | null | undefined>(undefined);
   const [importing, setImporting] = useState(false);
@@ -261,12 +263,36 @@ function MahallaPage({ mahallas, members, loading, onChanged }: { mahallas: Maha
     const byPerson = new Map<string, { name: string; items: Mahalla[] }>();
     for (const m of filtered) {
       const key = m.assignedToId ?? "none";
-      const group = byPerson.get(key) ?? { name: m.assignedTo?.fullName ?? "Biriktirilmagan", items: [] };
+      const group = byPerson.get(key) ?? { name: m.assignedTo?.fullName ?? "Bo'sh (hech kim olmagan)", items: [] };
       group.items.push(m);
       byPerson.set(key, group);
     }
     return [...byPerson.entries()].sort(([a, ga], [b, gb]) => (a === "none" ? 1 : b === "none" ? -1 : ga.items[0]!.sortOrder - gb.items[0]!.sortOrder));
   }, [mahallas, query]);
+
+  const assignedCount = mahallas.filter((m) => m.assignedToId).length;
+
+  const handleSelfAssign = async (value: boolean) => {
+    haptic.select();
+    try {
+      await changeSelfAssign(value);
+    } catch (err) {
+      showToast((err as Error).message, "error");
+    }
+  };
+
+  const handleUnassignAll = async () => {
+    if (!(await confirmAction(`Barcha ${assignedCount} ta MFY xodimlardan olinadi va bo'sh bo'ladi. Xodimlar qaytadan tanlaydi. Davom etilsinmi?`))) return;
+    try {
+      const r = await unassignAll();
+      if (!selfAssign) await changeSelfAssign(true);
+      haptic.success();
+      showToast(`${r.count} ta MFY bo'shatildi`, "success");
+      onChanged();
+    } catch (err) {
+      showToast((err as Error).message, "error");
+    }
+  };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -292,17 +318,19 @@ function MahallaPage({ mahallas, members, loading, onChanged }: { mahallas: Maha
 
   return (
     <div>
-      <div className="px-3 pt-3">
-        <label className="flex h-9 items-center gap-2 rounded-[10px] bg-soft px-2.5 text-hint">
-          <SearchIcon />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="MFY, rais yoki telefon"
-            className="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-hint"
-          />
-        </label>
-      </div>
+      <SearchField value={query} onChange={setQuery} placeholder="MFY, rais yoki telefon" />
+
+      {!query && mahallas.length > 0 && (
+        <Section
+          footer={
+            selfAssign
+              ? `Xodimlar «MFY'lar» bo'limida bo'sh MFY'larni o'zlari belgilab oladi. ${assignedCount} / ${mahallas.length} bo'lingan. Bo'lib bo'lingach, o'chirib qo'ying.`
+              : `Taqsimot yopiq: MFY'larni faqat siz biriktirasiz. ${assignedCount} / ${mahallas.length} bo'lingan.`
+          }
+        >
+          <Row title="Xodimlar o'zlari tanlaydi" after={<Switch checked={selfAssign} onChange={(v) => void handleSelfAssign(v)} />} />
+        </Section>
+      )}
 
       {groups.length === 0 && <EmptyState title={query ? "Hech narsa topilmadi" : "MFY'lar yo'q"} text={query ? undefined : "Qo'lda qo'shing yoki Excel'dan yuklang."} />}
 
@@ -322,9 +350,14 @@ function MahallaPage({ mahallas, members, loading, onChanged }: { mahallas: Maha
       ))}
 
       {!query && (
-        <Section footer="Excel ustunlari: 1 — MFY nomi, 2 — rais F.I.Sh, 3 — telefon, 4 — mas'ul xodim ismi, 5 — sektor (oxirgi ikkitasi ixtiyoriy). Bor MFY qayta qo'shilmaydi — ma'lumoti yangilanadi.">
+        <Section footer="Excel ustunlari: 1 — MFY nomi, 2 — rais F.I.Sh, 3 — telefon, 4 — mas'ul xodim ismi, 5 — sektor. 4 va 5 ixtiyoriy: mas'ul yozilmasa, xodimlar o'zlari tanlab oladi. Bor MFY qayta qo'shilmaydi — ma'lumoti yangilanadi.">
           <Row leading={<PlusIcon className="h-5 w-5 text-link" />} title="MFY qo'shish" tone="accent" onClick={() => setEditing(null)} />
           <Row leading={<UploadIcon className="h-5 w-5 text-link" />} title={importing ? "Yuklanmoqda..." : "Excel'dan yuklash"} tone="accent" onClick={() => fileRef.current?.click()} />
+        </Section>
+      )}
+      {!query && assignedCount > 0 && (
+        <Section footer="Masalan, yangi yil boshida qaytadan bo'lishish uchun.">
+          <Row title="Taqsimotni qaytadan boshlash" tone="danger" center onClick={() => void handleUnassignAll()} />
         </Section>
       )}
       <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => void handleImport(e)} />

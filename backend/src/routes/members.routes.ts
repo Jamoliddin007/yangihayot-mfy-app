@@ -131,6 +131,7 @@ export async function memberRoutes(fastify: FastifyInstance) {
       }
     });
     fastify.emitToOrg(orgId, "campaign:changed");
+    fastify.emitToOrg(orgId, "mahalla:changed");
     return { ok: true };
   });
 
@@ -151,6 +152,7 @@ export async function memberRoutes(fastify: FastifyInstance) {
     });
 
     fastify.emitToOrg(orgId, "campaign:changed");
+    fastify.emitToOrg(orgId, "mahalla:changed");
     return { moved };
   });
 }

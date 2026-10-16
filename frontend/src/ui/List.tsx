@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ChevronRight } from "./Icons";
+import { ChevronRight, SearchIcon } from "./Icons";
 
 // Telegram/iOS uslubidagi guruhlangan ro'yxat: sarlavha, oq blok, ichki chiziqlar, izoh
 
@@ -116,5 +116,70 @@ export function TextField({
         />
       )}
     </div>
+  );
+}
+
+// iOS uslubidagi o'chirib-yoqgich
+export function Switch({ checked, onChange, disabled }: { checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50 ${checked ? "bg-ok" : "bg-soft"}`}
+    >
+      <span
+        className={`absolute top-[2px] left-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-[0_2px_6px_rgba(0,0,0,0.2)] transition-transform duration-200 ${checked ? "translate-x-5" : ""}`}
+      />
+    </button>
+  );
+}
+
+// Ro'yxatda tanlash belgisi (doiracha). danger — bo'shatish uchun tanlanganda qizil
+export function SelectMark({ checked, danger }: { checked: boolean; danger?: boolean }) {
+  return (
+    <span
+      className={`inline-flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full transition-colors ${
+        checked ? (danger ? "bg-danger text-white" : "bg-accent text-on-accent") : "border-[1.5px] border-hint opacity-60"
+      }`}
+    >
+      {checked && (
+        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="m5 12.5 4.5 4.5L19 7.5" />
+        </svg>
+      )}
+    </span>
+  );
+}
+
+export function SearchField({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+  return (
+    <div className="px-3 pt-3">
+      <label className="flex h-9 items-center gap-2 rounded-[10px] bg-soft px-2.5 text-hint">
+        <SearchIcon />
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-hint"
+        />
+      </label>
+    </div>
+  );
+}
+
+// Bo'lim sarlavhasi o'ng tomonida kichik amal (masalan "Hammasi", "Bo'shatish")
+export function SectionTitle({ text, action, onAction }: { text: ReactNode; action?: string; onAction?: () => void }) {
+  return (
+    <span className="flex items-baseline justify-between gap-3">
+      <span className="min-w-0 truncate">{text}</span>
+      {action && (
+        <button type="button" onClick={onAction} className="-my-1 shrink-0 py-1 text-[14px] normal-case tracking-normal text-link">
+          {action}
+        </button>
+      )}
+    </span>
   );
 }

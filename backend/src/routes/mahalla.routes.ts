@@ -14,6 +14,8 @@ const mahallaSchema = z.object({
   assignedToId: z.string().min(1).nullable().optional(),
 });
 
+const idsSchema = z.object({ ids: z.array(z.string().min(1)).min(1).max(1000) });
+
 const mahallaInclude = { assignedTo: { select: { id: true, fullName: true } } } as const;
 
 const normalize = (text: string) => text.trim().toLowerCase().replace(/\s+/g, " ");
@@ -50,6 +52,7 @@ export async function mahallaRoutes(fastify: FastifyInstance) {
       data: { ...body, orgId, sortOrder: (maxOrder._max.sortOrder ?? 0) + 1 },
       include: mahallaInclude,
     });
+    fastify.emitToOrg(orgId, "mahalla:changed");
     return reply.code(201).send(mahalla);
   });
 
@@ -69,7 +72,8 @@ export async function mahallaRoutes(fastify: FastifyInstance) {
       return updated;
     });
 
-    fastify.emitToOrg(orgId, "campaign:changed");
+    fastify.emitToOrg(orgId, "mahalla:changed");
+    if (body.assignedToId !== undefined) fastify.emitToOrg(orgId, "campaign:changed");
     return mahalla;
   });
 
@@ -78,6 +82,7 @@ export async function mahallaRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     const { count } = await prisma.mahalla.updateMany({ where: { id, orgId }, data: { isActive: false } });
     if (count === 0) return reply.code(404).send({ error: "MFY topilmadi" });
+    fastify.emitToOrg(orgId, "mahalla:changed");
     return { ok: true };
   });
 
@@ -148,7 +153,92 @@ export async function mahallaRoutes(fastify: FastifyInstance) {
       }
     });
 
+    fastify.emitToOrg(orgId, "mahalla:changed");
     fastify.emitToOrg(orgId, "campaign:changed");
     return reply.code(201).send({ created, updated, unknownEmployees: [...unknownEmployees] });
+  });
+
+  // ---------- Taqsimot: xodimlar MFY'larni o'zlari bo'lishib oladi ----------
+  // Har bir xodim bo'sh MFY'larni belgilab o'ziga oladi, keyingisiga qolgani ko'rinadi.
+  // Boshliq taqsimotni yopib qo'yishi (selfAssign=false) yoki hammasini qaytadan boshlashi mumkin.
+
+  async function selfAssignOpen(orgId: string, reply: FastifyReply) {
+    const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId }, select: { selfAssign: true } });
+    if (!org.selfAssign) {
+      reply.code(403).send({ error: "Boshliq MFY tanlashni yopgan. O'zgartirish uchun boshliqqa murojaat qiling" });
+      return false;
+    }
+    return true;
+  }
+
+  fastify.post("/api/mahalla/claim", async (request, reply) => {
+    const { orgId, id: userId } = request.currentUser!;
+    const { ids } = idsSchema.parse(request.body);
+    if (!(await selfAssignOpen(orgId, reply))) return;
+
+    // Har bir MFY alohida, faqat hali bo'sh bo'lsa olinadi — ikki xodim bir vaqtda bossa ham
+    // MFY faqat birinchisiga tegadi, ikkinchisi "band bo'ldi" deb javob oladi
+    const claimed = await prisma.$transaction(async (tx) => {
+      const got: string[] = [];
+      for (const id of new Set(ids)) {
+        const { count } = await tx.mahalla.updateMany({ where: { id, orgId, isActive: true, assignedToId: null }, data: { assignedToId: userId } });
+        if (count === 1) got.push(id);
+      }
+      if (got.length) await reassignOpenTasks(tx, orgId, { mahallaId: { in: got }, assignedToId: null }, userId);
+      return got;
+    });
+
+    if (claimed.length) {
+      fastify.emitToOrg(orgId, "mahalla:changed");
+      fastify.emitToOrg(orgId, "campaign:changed");
+    }
+    return { claimed: claimed.length, taken: new Set(ids).size - claimed.length };
+  });
+
+  fastify.post("/api/mahalla/release", async (request, reply) => {
+    const { orgId, id: userId } = request.currentUser!;
+    const { ids } = idsSchema.parse(request.body);
+    if (!(await selfAssignOpen(orgId, reply))) return;
+
+    const released = await prisma.$transaction(async (tx) => {
+      const own = await tx.mahalla.findMany({ where: { id: { in: ids }, orgId, assignedToId: userId }, select: { id: true } });
+      const ownIds = own.map((m) => m.id);
+      if (ownIds.length === 0) return 0;
+      await tx.mahalla.updateMany({ where: { id: { in: ownIds } }, data: { assignedToId: null } });
+      // Joriy topshiriqdagi hali bog'lanilmagan vazifalar "biriktirilmagan"ga o'tadi — boshqalar yordam bera oladi
+      await reassignOpenTasks(tx, orgId, { mahallaId: { in: ownIds }, assignedToId: userId }, null);
+      return ownIds.length;
+    });
+
+    if (released) {
+      fastify.emitToOrg(orgId, "mahalla:changed");
+      fastify.emitToOrg(orgId, "campaign:changed");
+    }
+    return { released };
+  });
+
+  // Boshliq: taqsimotni qaytadan boshlash — barcha MFY'lar bo'sh bo'ladi, xodimlar qaytadan tanlaydi
+  fastify.post("/api/mahalla/unassign-all", { preHandler: requireBoss }, async (request) => {
+    const { orgId } = request.currentUser!;
+    const count = await prisma.$transaction(async (tx) => {
+      const { count } = await tx.mahalla.updateMany({ where: { orgId, assignedToId: { not: null } }, data: { assignedToId: null } });
+      await reassignOpenTasks(tx, orgId, {}, null);
+      return count;
+    });
+    fastify.emitToOrg(orgId, "mahalla:changed");
+    fastify.emitToOrg(orgId, "campaign:changed");
+    return { count };
+  });
+
+  fastify.get("/api/mahalla/settings", async (request) => {
+    return prisma.organization.findUniqueOrThrow({ where: { id: request.currentUser!.orgId }, select: { selfAssign: true } });
+  });
+
+  fastify.patch("/api/mahalla/settings", { preHandler: requireBoss }, async (request) => {
+    const { orgId } = request.currentUser!;
+    const { selfAssign } = z.object({ selfAssign: z.boolean() }).parse(request.body);
+    const org = await prisma.organization.update({ where: { id: orgId }, data: { selfAssign }, select: { selfAssign: true } });
+    fastify.emitToOrg(orgId, "mahalla:changed");
+    return org;
   });
 }
