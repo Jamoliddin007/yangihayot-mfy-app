@@ -1,0 +1,5 @@
+# Caddy Let's Encrypt sertifikatini avtomatik oladi va yangilab turadi.
+# WebSocket (Socket.io) ham avtomatik proxy qilinadi.
+{$DOMAIN} {
+	reverse_proxy app:4000
+}
