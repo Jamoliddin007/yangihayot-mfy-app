@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+/*
+  Semantik ranglar Telegram mavzusidan olinadi: telegram-web-app.js <html> ga
+  --tg-theme-* o'zgaruvchilarini qo'yadi va mavzu almashganda (kunduzgi/tungi) yangilaydi.
+  Telegram tashqarisida (brauzerda) qavs ichidagi standart och ranglar ishlatiladi.
+*/
+@theme inline {
+  --color-page: var(--tg-theme-secondary-bg-color, #f3f4f6);
+  --color-surface: var(--tg-theme-bg-color, #ffffff);
+  --color-ink: var(--tg-theme-text-color, #111827);
+  --color-muted: var(--tg-theme-subtitle-text-color, var(--tg-theme-hint-color, #6b7280));
+  --color-hint: var(--tg-theme-hint-color, #9ca3af);
+  --color-line: color-mix(in srgb, var(--tg-theme-hint-color, #9ca3af) 28%, transparent);
+  --color-soft: color-mix(in srgb, var(--tg-theme-hint-color, #9ca3af) 16%, transparent);
+  --color-accent: var(--tg-theme-button-color, #111827);
+  --color-on-accent: var(--tg-theme-button-text-color, #ffffff);
+}
+
 :root {
   color-scheme: light;
 }
@@ -11,5 +28,7 @@ html, body, #root {
 body {
   margin: 0;
   font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-page);
+  color: var(--color-ink);
   -webkit-tap-highlight-color: transparent;
 }

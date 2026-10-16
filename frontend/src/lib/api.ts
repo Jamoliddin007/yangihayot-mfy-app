@@ -1,15 +1,9 @@
-import { retrieveLaunchParams } from "@telegram-apps/sdk";
+import { getInitDataRaw } from "./telegram";
 
-export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+export { getInitDataRaw };
 
-export function getInitDataRaw(): string | null {
-  try {
-    const { initDataRaw } = retrieveLaunchParams();
-    return initDataRaw ? String(initDataRaw) : null;
-  } catch {
-    return null;
-  }
-}
+// Bo'sh = same-origin: frontend backend'ning o'zidan (yoki Vite proxy orqali) beriladi
+export const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 // Faqat development uchun: Telegram tashqarisida (brauzerda) sinash imkonini beradi.
 // Backendda NODE_ENV=production bo'lsa bu header e'tiborga olinmaydi.

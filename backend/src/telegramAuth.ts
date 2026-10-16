@@ -33,7 +33,10 @@ export function validateInitData(initData: string, botToken: string): ValidatedI
   const secretKey = crypto.createHmac("sha256", "WebAppData").update(botToken).digest();
   const calculatedHash = crypto.createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
 
-  if (calculatedHash !== hash) return null;
+  // timingSafeEqual: hash'ni belgima-belgi taxmin qilishga (timing attack) yo'l qo'ymaydi
+  const expected = Buffer.from(calculatedHash, "hex");
+  const received = Buffer.from(hash, "hex");
+  if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) return null;
 
   const authDate = Number(urlParams.get("auth_date") ?? 0);
   if (!authDate || Date.now() / 1000 - authDate > MAX_AUTH_AGE_SECONDS) return null;
@@ -41,6 +44,10 @@ export function validateInitData(initData: string, botToken: string): ValidatedI
   const userRaw = urlParams.get("user");
   if (!userRaw) return null;
 
-  const user: TelegramUser = JSON.parse(userRaw);
-  return { user, authDate };
+  try {
+    const user: TelegramUser = JSON.parse(userRaw);
+    return { user, authDate };
+  } catch {
+    return null;
+  }
 }
