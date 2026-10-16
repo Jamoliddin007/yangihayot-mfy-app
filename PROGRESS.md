@@ -146,7 +146,7 @@ Har qanday holat ──"Natijani bekor qilish" (faqat boshliq)──► Navbatda
 - Yig'ilish va tadbirda **sana-vaqt majburiy**; "Boshqa"da ixtiyoriy.
 
 ## Ochiq masalalar / keyingi qadamlar
-- [ ] Yangi versiyani serverga chiqarish (migratsiya + 30 MFY ro'yxati) — **shu bosqichda**.
+- [x] Yangi versiya serverda (2026-10-16): migratsiya, 30 MFY rasmiy ro'yxat bo'yicha, guruh ulangan. Branch `feature/assigned-mfy-redesign` — Telegramda sinalgach `main`ga birlashtiriladi.
 - [ ] Ulug'bek'ka **boshliq taklif havolasi**ni yuborish.
 - [ ] Ramazon va Diyorbek'ka xodim havolalari (ilovada → Xodimlar → a'zo → "Telegram orqali yuborish").
 - [ ] Botni guruhga qo'shib, boshliq `/ulash` yozadi.
