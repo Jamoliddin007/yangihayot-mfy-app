@@ -19,7 +19,7 @@ Ish jarayoni:
 
 ## Tashkilotlar va rollar (universal tuzilma)
 ```
-Platforma egasi (Jamoliddin) — yangi tashkilotlarni tasdiqlaydi, boshliq taklifini yaratadi
+Platforma egasi / admin (faqat bitta akkaunt, .env: PLATFORM_OWNER_TELEGRAM_ID) — yangi tashkilotlarni tasdiqlaydi, boshliq taklifini yaratadi
  └─ Tashkilot (masalan, Yangihayot tumani MFY uyushmasi)
      ├─ Boshliq(lar)  — topshiriq beradi, MFY va xodimlarni boshqaradi
      ├─ Xodimlar      — o'z MFY'lariga qo'ng'iroq qiladi, boshqalarga yordam beradi
@@ -385,4 +385,26 @@ Branch: `feature/assigned-mfy-redesign`
 **Tekshiruv**
 - Bot oqimi soxta Telegram API bilan lokal sinovda (15 tekshiruv): ro'yxatdan o'tish tugmasi, nom tekshiruvi, telefon tugmasi, begona kontakt rad etilishi, egaga xabar (telefon bilan), PENDING holat, takroriy `/start`, tasdiqlanmagan havola ololmasligi, begona tasdiqlay olmasligi, boshliqqa yo'riqnoma, xodim havolasi va ulashish tugmasi — hammasi o'tdi.
 - Backend unit testlari 12/12.
+
+### 2026-10-16 — Admin faqat bitta akkaunt; serverdagi ortiqcha tashkilotlar
+Branch: `feature/assigned-mfy-redesign`
+
+**Muammo (serverda topildi)**
+- Eski botda "Tashkilot ochish" tugmasi hammaga chiqardi. Bir necha kishi (jumladan boshliq va bir xodim) o'z tashkilotini ochib yubordi va ular tasdiqlandi. Natijada bo'sh nusxa tashkilotlar paydo bo'ldi; haqiqiy tashkilotda (30 MFY) boshliq yo'q, xodim esa o'z o'rniga (MFY'lari bilan) bog'lanmagan.
+
+**Talab (foydalanuvchidan)**
+- Faqat platforma egasining akkaunti ham xodim, ham admin bo'lishi kerak.
+
+**Qilindi (kod)**
+- Admin endi `.env`dagi `PLATFORM_OWNER_TELEGRAM_ID` bilan qat'iy belgilanadi. Server har ishga tushganda bazani shunga moslaydi — boshqa hech kim admin bo'lib qola olmaydi. "Birinchi so'rovchi avtomatik egasi bo'ladi" qoidasi olib tashlandi.
+- Admin o'zi ochgan tashkilot tasdiqsiz faollashadi; qolganlar admin tasdig'ini kutadi.
+
+**Ma'lumotlarni tuzatish (serverda, zaxiradan keyin; skript repoga qo'shilmaydi — shaxsiy ma'lumot)**
+- Boshliq haqiqiy tashkilotga boshliq qilinadi; ishlatilmagan boshliq havolasi bekor qilinadi.
+- Xodimning Telegram akkaunti uning o'rniga (MFY'lari bilan) bog'lanadi.
+- Bo'sh nusxa tashkilotlar va ortiqcha sinov akkaunti o'chiriladi.
+
+**Tekshiruv**
+- Admin sinovi: yangi foydalanuvchi admin emas; qo'lda admin qilingan begona akkaunt qayta ishga tushganda tushiriladi; begona so'rovi tasdiq kutadi.
+- Bot oqimi 15/15, backend unit testlari 12/12.
 

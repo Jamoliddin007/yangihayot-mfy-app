@@ -6,6 +6,18 @@ import { prisma } from "./db.js";
 
 export const INVITE_TTL_DAYS = 14;
 
+// Platforma egasi (admin) — faqat .env'dagi bitta Telegram akkaunt. Bazadagi belgi har ishga tushishda
+// shu qiymatga moslanadi: boshqa hech kim (ro'yxatdan o'tgan boshliq ham) egasi bo'lib qola olmaydi.
+const ownerEnv = process.env.PLATFORM_OWNER_TELEGRAM_ID?.trim();
+export const PLATFORM_OWNER_TELEGRAM_ID = ownerEnv && /^\d+$/.test(ownerEnv) ? BigInt(ownerEnv) : null;
+
+export async function syncPlatformOwner() {
+  if (PLATFORM_OWNER_TELEGRAM_ID === null) return { configured: false as const };
+  await prisma.user.updateMany({ where: { isPlatformOwner: true, telegramId: { not: PLATFORM_OWNER_TELEGRAM_ID } }, data: { isPlatformOwner: false } });
+  await prisma.user.updateMany({ where: { telegramId: PLATFORM_OWNER_TELEGRAM_ID }, data: { isPlatformOwner: true } });
+  return { configured: true as const };
+}
+
 export interface TelegramProfile {
   id: number;
   first_name: string;
@@ -36,7 +48,9 @@ export async function upsertTelegramUser(profile: TelegramProfile, tx: Prisma.Tr
     }
     return existing;
   }
-  return tx.user.create({ data: { telegramId, fullName: profileName(profile), username: profile.username ?? null } });
+  return tx.user.create({
+    data: { telegramId, fullName: profileName(profile), username: profile.username ?? null, isPlatformOwner: telegramId === PLATFORM_OWNER_TELEGRAM_ID },
+  });
 }
 
 export async function createInvite(
@@ -131,9 +145,8 @@ export async function requestOrganization(profile: TelegramProfile, name: string
     const pending = await tx.organization.findFirst({ where: { requestedById: user.id, status: "PENDING" } });
     if (pending) throw new DomainError(`Sizning "${pending.name}" so'rovingiz hali ko'rib chiqilmoqda.`);
 
-    const ownerExists = (await tx.user.count({ where: { isPlatformOwner: true } })) > 0;
-    if (!ownerExists) {
-      await tx.user.update({ where: { id: user.id }, data: { isPlatformOwner: true } });
+    // Platforma egasining o'z tashkiloti tasdiqsiz ochiladi; qolganlar egasining tasdig'ini kutadi
+    if (user.isPlatformOwner) {
       const org = await tx.organization.create({
         data: { name, status: "ACTIVE", approvedAt: new Date(), requestedById: user.id },
       });

@@ -130,7 +130,7 @@ export function createBot(token: string, appUrl: string) {
     try {
       const { org, user, autoApproved } = await requestOrganization(ctx.from as TelegramProfile, name, phone);
       if (autoApproved) {
-        await ctx.reply(`<b>${escapeHtml(org.name)}</b> yaratildi. Siz boshliq va platforma egasisiz.`, { ...html, ...Markup.removeKeyboard() });
+        await ctx.reply(`<b>${escapeHtml(org.name)}</b> yaratildi. Siz uning boshlig'isiz.`, { ...html, ...Markup.removeKeyboard() });
         return;
       }
       await ctx.reply(

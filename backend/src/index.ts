@@ -12,6 +12,7 @@ import { ZodError } from "zod";
 import type { Update } from "telegraf/types";
 import { prisma } from "./db.js";
 import { configureBotUi, createBot } from "./bot.js";
+import { syncPlatformOwner } from "./orgService.js";
 import { setupSocket } from "./socket.js";
 import { createNotifiers } from "./groupNotify.js";
 import { DEV_AUTH_ENABLED } from "./authPlugin.js";
@@ -131,6 +132,8 @@ async function main() {
     });
   }
 
+  const owner = await syncPlatformOwner();
+  if (!owner.configured) fastify.log.warn("PLATFORM_OWNER_TELEGRAM_ID o'rnatilmagan — yangi tashkilot so'rovlarini tasdiqlaydigan admin yo'q");
   await fastify.listen({ port: PORT, host: "0.0.0.0" });
 
   const botRuns = BOT_MODE !== "off";
