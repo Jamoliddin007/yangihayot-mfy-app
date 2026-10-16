@@ -30,7 +30,7 @@ Platforma egasi (Jamoliddin) — yangi tashkilotlarni tasdiqlaydi, boshliq takli
 - **Rol tashkilot ichida** saqlanadi: bir kishi bir tashkilotda boshliq, boshqasida xodim bo'lishi mumkin; ilovada profil orqali tashkilot almashtiriladi.
 - **Hech kim o'zini o'zi boshliq qila olmaydi.** Kirish faqat:
   - **Taklif havolasi** — rol havolaning ichida (xodim/boshliq), bir martalik, 14 kun amal qiladi, bekor qilinishi mumkin.
-  - **Yangi tashkilot so'rovi** — botda "Tashkilot ochish" → platforma egasi botda "Tasdiqlash / Rad etish" → so'rovchi boshliq bo'ladi.
+  - **Boshliqni ro'yxatdan o'tkazish** — botga dastlab faqat boshliq yoziladi: "Boshliq sifatida ro'yxatdan o'tish" → tashkilot nomi → telefon raqami. Platforma egasiga so'rov keladi (ism, @username, telefon). Shartnoma kelishilgach egasi "Tasdiqlash"ni bosadi → so'rovchi boshliq bo'ladi va qadamlar yo'riqnomasini oladi → xodimlariga havola yuboradi (`/havola` yoki ilovadan).
 - **Ism** Telegram'dan olinadi; o'zi profilda, boshliq a'zo kartochkasida o'zgartira oladi.
 - Boshliq xodimni **oldindan ism bilan qo'shishi** mumkin (MFY'larni darhol biriktirish uchun) — xodim havolani ochganda shu o'rinni egallaydi. U boshqa tashkilotda allaqachon ro'yxatdan o'tgan bo'lsa — akkauntlar xavfsiz birlashtiriladi.
 - Himoyalar: oxirgi boshliqni o'chirib/xodimga tushirib bo'lmaydi; MFY'si bor xodimni o'chirishdan oldin MFY'larini o'tkazish shart; tashkilot to'xtatilsa (SUSPENDED) a'zolar kira olmaydi.
@@ -38,9 +38,10 @@ Platforma egasi (Jamoliddin) — yangi tashkilotlarni tasdiqlaydi, boshliq takli
 ## Bot buyruqlari
 | Qayerda | Buyruq | Kim | Nima qiladi |
 |---|---|---|---|
-| Shaxsiy | `/start` | hamma | Salomlashish + "Ilovani ochish"; a'zo bo'lmasa — "Tashkilot ochish" |
+| Shaxsiy | `/start` | hamma | Salomlashish + "Ilovani ochish"; a'zo bo'lmasa — "Boshliq sifatida ro'yxatdan o'tish" |
 | Shaxsiy | `/start <kod>` | taklif olgan | Taklif havolasi orqali qo'shilish |
-| Shaxsiy | `/tashkilotlar` | platforma egasi | Barcha tashkilotlar + "Boshliq taklifi" tugmasi |
+| Shaxsiy | `/havola` | boshliq | Xodim uchun bir martalik taklif havolasi + "Xodimga yuborish" |
+| Shaxsiy | `/tashkilotlar` | platforma egasi | Barcha tashkilotlar; kutilayotganlarini tasdiqlash/rad etish, faollariga "Boshliq taklifi" |
 | Guruh | `/ulash` | boshliq | Natijalar va hisobotlar shu guruhga |
 | Guruh | `/uzish` | boshliq | Guruhni uzish |
 
@@ -364,3 +365,24 @@ Branch: `feature/assigned-mfy-redesign`
 - Backend unit testlari 12/12; frontend build; telefon o'lchamida skrinshotlar. Topilib tuzatilgan: bo'sh MFY'lar ro'yxati pastda qolib ketardi → tepaga ko'chirildi.
 
 - Serverga chiqarildi (deploy oldidan zaxira olindi): migratsiya qo'llandi, Yangihayot'da taqsimot yoqilgan, 30/30 MFY avvalgidek xodimlarda, xatolar yo'q.
+
+### 2026-10-16 — Ro'yxatdan o'tish tartibi: avval boshliq, shartnomadan keyin tasdiq, keyin xodimlar
+Branch: `feature/assigned-mfy-redesign`
+
+**Talab (foydalanuvchidan)**
+- Botga dastlab faqat boshliq ro'yxatdan o'tadi. Boshliq bilan shartnoma kelishilgach platforma egasi tasdiqlaydi. Keyin boshliq xodimlariga havola tashlab beradi.
+
+**Qilindi**
+- `/start` (a'zo bo'lmagan odam): "Xodim bo'lsangiz — boshliqdan havola so'rang; boshliq bo'lsangiz — ro'yxatdan o'ting" + **"Boshliq sifatida ro'yxatdan o'tish"** tugmasi.
+- Ro'yxatdan o'tish 2 qadam: **tashkilot nomi** → **telefon raqami** ("Raqamni yuborish" tugmasi; qo'lda yozsa ham bo'ladi; boshqa odamning kontakti qabul qilinmaydi). Raqam foydalanuvchi profiliga saqlanadi.
+- Platforma egasiga xabar: tashkilot, boshliq ismi, @username, telefon + "Shartnoma kelishilgach tasdiqlang" + Tasdiqlash / Rad etish.
+- So'rov kutilayotganda `/start` → "so'rovingiz ko'rib chiqilmoqda" (qayta so'rov yuborilmaydi).
+- Tasdiqlangach boshliqqa yo'riqnoma: 1) MFY'larni Excel'dan yuklash, 2) xodimlarga havola, 3) xodimlar MFY'larni bo'lishib oladi, 4) guruhga `/ulash`. Tugmalar: "Ilovani ochish", "Xodim uchun havola".
+- **Xodim uchun havola botning o'zidan**: `/havola` yoki tugma → bir martalik havola + "Xodimga yuborish" (Telegram'ning ulashish oynasi) + "Yana havola". Bir nechta tashkilot boshlig'iga — tanlov. Tasdiqlanmagan so'rovchi havola ololmaydi.
+- `/tashkilotlar`: kutilayotgan so'rovlar so'rovchi ma'lumoti bilan, shu yerdan tasdiqlash/rad etish mumkin (dastlabki xabar yo'qolsa ham).
+- Yangihayot: tashkilot va 30 MFY allaqachon bor, shuning uchun Ulug'bek ro'yxatdan o'tmaydi — unga berilgan boshliq havolasi (siz yaratgan, ya'ni oldindan tasdiqlangan) orqali kiradi.
+
+**Tekshiruv**
+- Bot oqimi soxta Telegram API bilan lokal sinovda (15 tekshiruv): ro'yxatdan o'tish tugmasi, nom tekshiruvi, telefon tugmasi, begona kontakt rad etilishi, egaga xabar (telefon bilan), PENDING holat, takroriy `/start`, tasdiqlanmagan havola ololmasligi, begona tasdiqlay olmasligi, boshliqqa yo'riqnoma, xodim havolasi va ulashish tugmasi — hammasi o'tdi.
+- Backend unit testlari 12/12.
+

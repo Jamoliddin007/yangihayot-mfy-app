@@ -123,9 +123,11 @@ export async function acceptInvite(code: string, profile: TelegramProfile) {
 
 // Yangi tashkilot so'rovi. Platformada hali egasi bo'lmasa (yangi o'rnatish) — so'rovchi egasi bo'ladi
 // va tashkilot darhol faollashadi; aks holda platforma egasi tasdiqlashini kutadi.
-export async function requestOrganization(profile: TelegramProfile, name: string) {
+// Boshliqning ro'yxatdan o'tish so'rovi. Telefon — platforma egasi u bilan shartnoma bo'yicha bog'lanishi uchun
+export async function requestOrganization(profile: TelegramProfile, name: string, phone?: string) {
   return prisma.$transaction(async (tx) => {
-    const user = await upsertTelegramUser(profile, tx);
+    let user = await upsertTelegramUser(profile, tx);
+    if (phone) user = await tx.user.update({ where: { id: user.id }, data: { phone } });
     const pending = await tx.organization.findFirst({ where: { requestedById: user.id, status: "PENDING" } });
     if (pending) throw new DomainError(`Sizning "${pending.name}" so'rovingiz hali ko'rib chiqilmoqda.`);
 
