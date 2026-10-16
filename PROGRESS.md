@@ -160,3 +160,5 @@ Branch: `feature/hardening-and-perf`
 - ⚠️ Telegram ichida qo'lda sinab ko'rish kerak (mavzu, tebranish, tasdiqlash oynalari).
 
 **Ishga tushirishdagi o'zgarish**: endi `cd frontend && npm run build`, keyin backend, ngrok esa **4000** portga (`ngrok http 4000`). `.env`da `DEV_AUTH` yozilmagan bo'lsa — brauzer orqali dev-kirish ishlamaydi (bu to'g'ri).
+
+**Holat**: commit `eeaaabe` → `feature/hardening-and-perf` branch'ga push qilindi. PR `feature/dev-single-origin-proxy` (PR #1) ustiga ochiladi — PR #1 birlashtirilgach GitHub uni avtomatik `main` ga o'tkazadi.
