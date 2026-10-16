@@ -36,7 +36,14 @@ export async function memberRoutes(fastify: FastifyInstance) {
       prisma.membership.findMany({ where: { orgId }, include: { user: true }, orderBy: { createdAt: "asc" } }),
       // Hali qo'shilmagan o'rinlar uchun amaldagi havola
       prisma.invite.findMany({
-        where: { orgId, userId: { not: null }, usedAt: null, revokedAt: null, expiresAt: { gt: new Date() } },
+        // Muddatsiz (eski tizimdan ko'chirilgan) havolalar ham amal qiladi
+        where: {
+          orgId,
+          userId: { not: null },
+          usedAt: null,
+          revokedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
         orderBy: { createdAt: "desc" },
       }),
       prisma.mahalla.groupBy({ by: ["assignedToId"], where: { orgId, isActive: true }, _count: true }),
