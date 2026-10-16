@@ -5,7 +5,8 @@
 set -euo pipefail
 
 ENV_FILE=/opt/mfy-app/.env
-get() { grep -E "^$1=" "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '"'"'"; }
+# Qator bo'lmasa bo'sh qaytaradi (set -e skriptni to'xtatmasin)
+get() { { grep -E "^$1=" "$ENV_FILE" || true; } | tail -1 | cut -d= -f2- | tr -d '"'"'"; }
 
 TOKEN=$(get BOT_TOKEN)
 CHAT=$(get PLATFORM_OWNER_TELEGRAM_ID)
