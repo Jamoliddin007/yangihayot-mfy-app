@@ -1,5 +1,6 @@
 import type { CallStatus, CallTask, Campaign } from "../types";
-import { STATUS_ORDER, STATUS_TONE } from "../types";
+import { KIND_LABEL, STATUS_ORDER, STATUS_TONE } from "../types";
+import { formatSchedule } from "../lib/format";
 import { ProgressBar, reachedCount } from "../ui/Status";
 
 export interface TaskGroup {
@@ -35,16 +36,21 @@ const LEGEND: [CallStatus, string][] = [
   ["PENDING", "navbatda"],
 ];
 
-// Topshiriq sarlavhasi + katta raqam + ko'p rangli progress + qisqa izoh
-export function CampaignSummary({ campaign, tasks, caption }: { campaign: Campaign; tasks: CallTask[]; caption: string }) {
+// Topshiriq: nima, qachon, qayerda + katta raqam + ko'p rangli progress
+export function CampaignSummary({ campaign, tasks, caption }: { campaign: Campaign; tasks: CallTask[]; caption?: string }) {
   const reached = reachedCount(tasks);
   const count = (status: CallStatus) =>
     tasks.filter((t) => (status === "PENDING" ? t.status === "PENDING" || t.status === "IN_PROGRESS" : t.status === status)).length;
 
   return (
     <div className="mx-3 mt-3 rounded-xl bg-surface px-4 pt-3.5 pb-4">
-      <div className="text-[13px] text-hint">{caption}</div>
+      <div className="text-[13px] text-hint">{caption ?? KIND_LABEL[campaign.kind]}</div>
       <div className="mt-0.5 text-[17px] font-semibold leading-snug text-ink">{campaign.title}</div>
+      {(campaign.scheduledAt || campaign.location) && (
+        <div className="mt-1 text-[15px] font-medium text-link">
+          {[campaign.scheduledAt && formatSchedule(campaign.scheduledAt), campaign.location].filter(Boolean).join(" · ")}
+        </div>
+      )}
       {campaign.description && <div className="mt-1 text-[14px] leading-snug text-muted">{campaign.description}</div>}
 
       <div className="mt-4 flex items-baseline gap-1.5">

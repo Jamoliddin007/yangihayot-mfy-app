@@ -1,14 +1,15 @@
 import type { Prisma } from "@prisma/client";
 
-// MFY mas'uli o'zgarganda faol topshiriqdagi hali bog'lanilmagan vazifalarni ham yangi xodimga o'tkazadi.
-// Bog'lanilganlari (REACHED) tarix sifatida kim bajargan bo'lsa o'shanda qoladi.
+// MFY mas'uli o'zgarganda tashkilotning faol topshirig'idagi hali bog'lanilmagan vazifalarni ham
+// yangi xodimga o'tkazadi. Bog'lanilganlari (REACHED) tarix sifatida o'zgarmaydi.
 export function reassignOpenTasks(
   tx: Prisma.TransactionClient,
-  filter: Prisma.CallTaskWhereInput,
+  orgId: string,
+  filter: Pick<Prisma.CallTaskWhereInput, "mahallaId" | "assignedToId">,
   assignedToId: string | null,
 ) {
   return tx.callTask.updateMany({
-    where: { ...filter, status: { not: "REACHED" }, campaign: { status: "ACTIVE" } },
+    where: { ...filter, status: { not: "REACHED" }, campaign: { orgId, status: "ACTIVE" } },
     data: { assignedToId },
   });
 }

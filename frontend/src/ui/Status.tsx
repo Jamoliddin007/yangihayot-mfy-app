@@ -1,12 +1,12 @@
 import type { CallStatus, CallTask } from "../types";
-import { STATUS_LABEL, STATUS_TONE } from "../types";
+import { STATUS_LABEL, STATUS_SHORT, STATUS_TONE } from "../types";
 
 export function StatusDot({ status }: { status: CallStatus }) {
   return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${STATUS_TONE[status].dot}`} />;
 }
 
-export function StatusText({ status, className = "" }: { status: CallStatus; className?: string }) {
-  return <span className={`${STATUS_TONE[status].text} ${className}`}>{STATUS_LABEL[status]}</span>;
+export function StatusText({ status, className = "", short }: { status: CallStatus; className?: string; short?: boolean }) {
+  return <span className={`${STATUS_TONE[status].text} ${className}`}>{(short ? STATUS_SHORT : STATUS_LABEL)[status]}</span>;
 }
 
 // Ko'p rangli progress: yashil — bog'landi, to'q sariq — ko'tarmadi, kulrang — o'chiq, ko'k — hozir

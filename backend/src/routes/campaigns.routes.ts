@@ -1,62 +1,83 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { authenticate, requireBoss } from "../authPlugin.js";
+import { requireBoss } from "../authPlugin.js";
+import { orgScoped } from "./scope.js";
 import { taskInclude } from "../taskInclude.js";
-import { finalReportMessage } from "../messages.js";
+import { finalReportMessage, newCampaignMessage } from "../messages.js";
 
-const createSchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  description: z.string().trim().max(1000).optional(),
-});
+const createSchema = z
+  .object({
+    kind: z.enum(["MEETING", "EVENT", "OTHER"]),
+    title: z.string().trim().min(2).max(200),
+    description: z.string().trim().max(1000).optional(),
+    scheduledAt: z.coerce.date().optional(),
+    location: z.string().trim().max(200).optional(),
+  })
+  // Yig'ilish va tadbirda vaqt muhim — xodimlar raislarga aynan shuni yetkazadi
+  .refine((b) => b.kind === "OTHER" || b.scheduledAt, { message: "Sana va vaqtni kiriting", path: ["scheduledAt"] });
 
 const campaignInclude = {
-  tasks: {
-    include: taskInclude,
-    orderBy: { mahalla: { sortOrder: "asc" } },
-  },
+  tasks: { include: taskInclude, orderBy: { mahalla: { sortOrder: "asc" } } },
 } as const;
 
 export async function campaignRoutes(fastify: FastifyInstance) {
-  fastify.addHook("preHandler", authenticate);
+  orgScoped(fastify);
 
-  fastify.get("/api/campaigns/active", async () => {
+  fastify.get("/api/campaigns/active", async (request) => {
     return prisma.callCampaign.findFirst({
-      where: { status: "ACTIVE" },
+      where: { orgId: request.currentUser!.orgId, status: "ACTIVE" },
       orderBy: { createdAt: "desc" },
       include: campaignInclude,
     });
   });
 
-  fastify.get("/api/campaigns", async () => {
-    return prisma.callCampaign.findMany({ orderBy: { createdAt: "desc" }, take: 20 });
+  // Oldingi topshiriqlar tarixi (natijalar soni bilan)
+  fastify.get("/api/campaigns", async (request) => {
+    const campaigns = await prisma.callCampaign.findMany({
+      where: { orgId: request.currentUser!.orgId },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      include: { _count: { select: { tasks: true } } },
+    });
+    const reached = await prisma.callTask.groupBy({
+      by: ["campaignId"],
+      where: { campaignId: { in: campaigns.map((c) => c.id) }, status: "REACHED" },
+      _count: true,
+    });
+    const reachedBy = new Map(reached.map((r) => [r.campaignId, r._count]));
+    return campaigns.map(({ _count, ...c }) => ({ ...c, total: _count.tasks, reached: reachedBy.get(c.id) ?? 0 }));
   });
 
   fastify.post("/api/campaigns", { preHandler: requireBoss }, async (request, reply) => {
+    const { orgId, id: createdById } = request.currentUser!;
     const body = createSchema.parse(request.body);
 
-    // Bir vaqtda faqat bitta faol vazifa bo'lishi mumkin — aks holda xodimlar
-    // turli ro'yxatlarni ko'rib, bir raisga ikki marta qo'ng'iroq qilishi mumkin edi
+    // Bir tashkilotda bir vaqtda bitta faol topshiriq — xodimlar adashmasligi uchun
     const result = await prisma.$transaction(async (tx) => {
-      const active = await tx.callCampaign.findFirst({ where: { status: "ACTIVE" } });
-      if (active) return { error: "Avval joriy vazifani yakunlang" } as const;
+      if (await tx.callCampaign.findFirst({ where: { orgId, status: "ACTIVE" } })) {
+        return { error: "Avval joriy topshiriqni yakunlang" } as const;
+      }
+      const mahallas = await tx.mahalla.findMany({ where: { orgId, isActive: true } });
+      if (mahallas.length === 0) return { error: "Avval MFY'larni qo'shing" } as const;
 
-      const mahallas = await tx.mahalla.findMany({
-        where: { isActive: true },
-        include: { assignedTo: { select: { isActive: true } } },
-      });
-      if (mahallas.length === 0) return { error: "Avval mahalla raislarini qo'shing" } as const;
-
+      // Mas'ul faol a'zo bo'lmasa — vazifa biriktirilmagan bo'ladi (boshliq ko'radi va biriktiradi)
+      const activeIds = new Set(
+        (await tx.membership.findMany({ where: { orgId, isActive: true }, select: { userId: true } })).map((m) => m.userId),
+      );
       const campaign = await tx.callCampaign.create({
         data: {
+          orgId,
+          createdById,
+          kind: body.kind,
           title: body.title,
-          description: body.description || undefined,
-          createdById: request.currentUser!.id,
-          // Har bir MFY doimiy mas'ul xodimiga beriladi (faol bo'lmasa — biriktirilmagan, boshliq ko'radi)
+          description: body.description || null,
+          scheduledAt: body.scheduledAt ?? null,
+          location: body.location || null,
           tasks: {
             create: mahallas.map((m) => ({
               mahallaId: m.id,
-              assignedToId: m.assignedTo?.isActive ? m.assignedToId : null,
+              assignedToId: m.assignedToId && activeIds.has(m.assignedToId) ? m.assignedToId : null,
             })),
           },
         },
@@ -65,53 +86,40 @@ export async function campaignRoutes(fastify: FastifyInstance) {
       return { campaign } as const;
     });
 
-    if ("error" in result) {
-      return reply.code(409).send({ error: result.error });
+    if ("error" in result) return reply.code(409).send({ error: result.error });
+    const { campaign } = result;
+    fastify.emitToOrg(orgId, "campaign:created", campaign);
+
+    // Har bir xodimga shaxsiy xabar: nima, qachon va unga nechta MFY
+    const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
+    const perUser = new Map<string, number>();
+    for (const t of campaign.tasks) if (t.assignedToId) perUser.set(t.assignedToId, (perUser.get(t.assignedToId) ?? 0) + 1);
+    const users = await prisma.user.findMany({ where: { id: { in: [...perUser.keys()] }, telegramId: { not: null } } });
+    for (const u of users) {
+      void fastify.notifyUser(u.telegramId!, newCampaignMessage(campaign, perUser.get(u.id)!, org.timezone), true);
     }
 
-    fastify.io.to("dashboard").emit("campaign:created", result.campaign);
-    return reply.code(201).send(result.campaign);
+    return reply.code(201).send(campaign);
   });
 
   fastify.post("/api/campaigns/:id/close", { preHandler: requireBoss }, async (request, reply) => {
+    const { orgId } = request.currentUser!;
     const { id } = request.params as { id: string };
     const { count } = await prisma.callCampaign.updateMany({
-      where: { id, status: "ACTIVE" },
-      data: { status: "CLOSED" },
+      where: { id, orgId, status: "ACTIVE" },
+      data: { status: "CLOSED", closedAt: new Date() },
     });
-    if (count === 0) {
-      return reply.code(409).send({ error: "Vazifa topilmadi yoki allaqachon yakunlangan" });
-    }
+    if (count === 0) return reply.code(409).send({ error: "Topshiriq topilmadi yoki allaqachon yakunlangan" });
 
-    const campaign = await prisma.callCampaign.findUniqueOrThrow({ where: { id } });
+    const campaign = await prisma.callCampaign.findUniqueOrThrow({ where: { id }, include: { org: true } });
     const tasks = await prisma.callTask.findMany({
       where: { campaignId: id },
       include: taskInclude,
       orderBy: { mahalla: { sortOrder: "asc" } },
     });
 
-    fastify.io.to("dashboard").emit("campaign:closed", campaign);
-    void fastify.notifyGroup(finalReportMessage(campaign.title, tasks));
-    return campaign;
-  });
-
-  fastify.get("/api/campaigns/:id/summary", async (request) => {
-    const { id } = request.params as { id: string };
-    const tasks = await prisma.callTask.findMany({
-      where: { campaignId: id },
-      include: { assignedTo: { select: { id: true, fullName: true } } },
-    });
-
-    const byStatus: Record<string, number> = {};
-    const byEmployee: Record<string, number> = {};
-
-    for (const task of tasks) {
-      byStatus[task.status] = (byStatus[task.status] ?? 0) + 1;
-      if (task.assignedTo) {
-        byEmployee[task.assignedTo.fullName] = (byEmployee[task.assignedTo.fullName] ?? 0) + 1;
-      }
-    }
-
-    return { total: tasks.length, byStatus, byEmployee };
+    fastify.emitToOrg(orgId, "campaign:closed", { id });
+    void fastify.notifyGroup(orgId, finalReportMessage(campaign, tasks, campaign.org.timezone));
+    return { id, status: campaign.status };
   });
 }

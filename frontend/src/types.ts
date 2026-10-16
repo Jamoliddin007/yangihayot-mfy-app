@@ -2,12 +2,26 @@ export type Role = "BOSS" | "EMPLOYEE";
 
 export type CallStatus = "PENDING" | "IN_PROGRESS" | "REACHED" | "NO_ANSWER" | "PHONE_OFF";
 export type ResultStatus = Extract<CallStatus, "REACHED" | "NO_ANSWER" | "PHONE_OFF">;
+export type CampaignKind = "MEETING" | "EVENT" | "OTHER";
 
-export interface CurrentUser {
+export interface MembershipInfo {
+  orgId: string;
+  orgName: string;
+  role: Role;
+}
+
+export interface MeResponse {
+  user: { id: string; fullName: string; isPlatformOwner: boolean };
+  memberships: MembershipInfo[];
+}
+
+// Joriy tashkilotdagi foydalanuvchi
+export interface SessionUser {
   id: string;
-  telegramId: string;
   fullName: string;
   role: Role;
+  orgId: string;
+  orgName: string;
 }
 
 export interface UserRef {
@@ -20,6 +34,7 @@ export interface Mahalla {
   name: string;
   chairmanName: string;
   phone: string;
+  sector: number | null;
   sortOrder: number;
   isActive: boolean;
   assignedToId: string | null;
@@ -34,31 +49,53 @@ export interface CallTask {
   status: CallStatus;
   assignedToId: string | null;
   assignedTo: UserRef | null;
+  calledById: string | null;
+  calledBy: UserRef | null;
+  note: string | null;
   calledAt: string | null;
   updatedAt: string;
 }
 
 export interface Campaign {
   id: string;
+  kind: CampaignKind;
   title: string;
   description: string | null;
+  scheduledAt: string | null;
+  location: string | null;
   status: "ACTIVE" | "CLOSED";
   createdAt: string;
+  closedAt: string | null;
   tasks: CallTask[];
 }
 
-export interface Employee {
-  id: string;
-  fullName: string;
-  phone: string | null;
-  isActive: boolean;
-  telegramId: string | null;
-  inviteCode: string | null;
-  linkedAt: string | null;
-  createdAt: string;
-  inviteLink: string | null;
-  _count: { mahallas: number };
+export interface CampaignHistoryItem extends Omit<Campaign, "tasks"> {
+  total: number;
+  reached: number;
 }
+
+export interface Member {
+  userId: string;
+  fullName: string;
+  username: string | null;
+  phone: string | null;
+  role: Role;
+  isActive: boolean;
+  joined: boolean;
+  mahallaCount: number;
+  inviteLink: string | null;
+}
+
+export const ROLE_LABEL: Record<Role, string> = {
+  BOSS: "Boshliq",
+  EMPLOYEE: "Xodim",
+};
+
+export const KIND_LABEL: Record<CampaignKind, string> = {
+  MEETING: "Yig'ilish",
+  EVENT: "Tadbir",
+  OTHER: "Boshqa",
+};
 
 export const STATUS_LABEL: Record<CallStatus, string> = {
   PENDING: "Navbatda",
@@ -66,6 +103,15 @@ export const STATUS_LABEL: Record<CallStatus, string> = {
   REACHED: "Bog'landi",
   NO_ANSWER: "Ko'tarmadi",
   PHONE_OFF: "Telefon o'chiq",
+};
+
+// Ro'yxat qatorlari uchun qisqa nom (rais ismi qisqarib ketmasligi uchun)
+export const STATUS_SHORT: Record<CallStatus, string> = {
+  PENDING: "Navbatda",
+  IN_PROGRESS: "Qo'ng'iroqda",
+  REACHED: "Bog'landi",
+  NO_ANSWER: "Ko'tarmadi",
+  PHONE_OFF: "O'chiq",
 };
 
 // Rang — matn rangi va nuqta uchun (Tailwind sinflari)

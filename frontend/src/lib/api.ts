@@ -24,9 +24,19 @@ export function clearDevTelegramId() {
   localStorage.removeItem("dev_telegram_id");
 }
 
+// Tanlangan tashkilot: har bir so'rov shu tashkilot doirasida bajariladi (server a'zolikni tekshiradi)
+let currentOrgId: string | null = null;
+export function setCurrentOrg(orgId: string | null) {
+  currentOrgId = orgId;
+}
+export function getCurrentOrg() {
+  return currentOrgId;
+}
+
 function buildHeaders(hasJsonBody: boolean): Record<string, string> {
-  const headers: Record<string, string> = { "ngrok-skip-browser-warning": "true" };
+  const headers: Record<string, string> = {};
   if (hasJsonBody) headers["Content-Type"] = "application/json";
+  if (currentOrgId) headers["x-org-id"] = currentOrgId;
 
   const initData = getInitDataRaw();
   if (initData) {

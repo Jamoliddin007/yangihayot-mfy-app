@@ -4,4 +4,5 @@ import type { Prisma } from "@prisma/client";
 export const taskInclude = {
   mahalla: true,
   assignedTo: { select: { id: true, fullName: true } },
+  calledBy: { select: { id: true, fullName: true } },
 } satisfies Prisma.CallTaskInclude;

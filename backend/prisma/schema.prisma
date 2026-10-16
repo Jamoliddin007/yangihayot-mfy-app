@@ -7,17 +7,30 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ---------------------------------------------------------------------------
+// Platforma ko'p tashkilotli (multi-tenant): har bir tuman/uyushma — alohida
+// Organization. Rol foydalanuvchida emas, a'zolikda (Membership) saqlanadi —
+// bir kishi bir tashkilotda boshliq, boshqasida xodim bo'lishi mumkin.
+// ---------------------------------------------------------------------------
+
 enum Role {
   BOSS
   EMPLOYEE
 }
 
+enum OrgStatus {
+  PENDING   // ro'yxatdan o'tish so'rovi, platforma egasi tasdiqlashini kutmoqda
+  ACTIVE
+  SUSPENDED // vaqtincha to'xtatilgan (masalan, to'lov qilinmagan) — a'zolar kira olmaydi
+  REJECTED
+}
+
 enum CallStatus {
-  PENDING      // hali qo'ng'iroq qilinmagan (qizil)
-  IN_PROGRESS  // hozir kimdir qo'ng'iroq qilyapti (sariq)
-  REACHED      // javob berdi (yashil)
-  NO_ANSWER    // ko'tarmadi (to'q sariq)
-  PHONE_OFF    // telefon o'chiq (kulrang)
+  PENDING      // hali qo'ng'iroq qilinmagan
+  IN_PROGRESS  // hozir qo'ng'iroq qilinmoqda
+  REACHED      // bog'lanildi (yakuniy)
+  NO_ANSWER    // ko'tarmadi
+  PHONE_OFF    // telefon o'chiq
 }
 
 enum CampaignStatus {
@@ -25,77 +38,151 @@ enum CampaignStatus {
   CLOSED
 }
 
-model User {
-  id          String    @id @default(cuid())
-  telegramId  BigInt?   @unique
-  fullName    String
-  phone       String?
-  role        Role      @default(EMPLOYEE)
-  isActive    Boolean   @default(true)
-  inviteCode  String?   @unique
-  linkedAt    DateTime?
-  createdAt   DateTime  @default(now())
+enum CampaignKind {
+  MEETING // yig'ilish
+  EVENT   // tadbir
+  OTHER
+}
 
+model Organization {
+  id            String    @id @default(cuid())
+  name          String
+  status        OrgStatus @default(PENDING)
+  timezone      String    @default("Asia/Tashkent")
+  // Natijalar va hisobotlar yuboriladigan Telegram guruhi (boshliq guruhda /ulash yozadi)
+  groupChatId   String?
+  requestedById String?
+  requestedBy   User?     @relation("OrgRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+  approvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  memberships Membership[]
+  invites     Invite[]
+  mahallas    Mahalla[]
+  campaigns   CallCampaign[]
+}
+
+model User {
+  id              String   @id @default(cuid())
+  // null — boshliq qo'shgan, lekin hali taklif havolasini ochmagan xodim (o'rinbosar)
+  telegramId      BigInt?  @unique
+  fullName        String
+  username        String?
+  phone           String?
+  isPlatformOwner Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  memberships      Membership[]
+  requestedOrgs    Organization[] @relation("OrgRequester")
+  invitesCreated   Invite[]       @relation("InviteCreator")
+  invitesFor       Invite[]       @relation("InvitePlaceholder")
   createdCampaigns CallCampaign[] @relation("CampaignCreator")
   assignedTasks    CallTask[]     @relation("TaskAssignee")
+  calledTasks      CallTask[]     @relation("TaskCaller")
   callEvents       CallEvent[]
   mahallas         Mahalla[]      @relation("MahallaAssignee")
 }
 
+model Membership {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role
+  isActive  Boolean      @default(true)
+  createdAt DateTime     @default(now())
+
+  @@unique([orgId, userId])
+  @@index([userId])
+}
+
+// Taklif havolasi: t.me/<bot>?start=<code>. Rol havolada — hech kim o'zini o'zi boshliq qila olmaydi.
+model Invite {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  role        Role
+  // Oldindan qo'shilgan xodim (MFY'lar biriktirilgan bo'lishi mumkin) — havolani ochgan odam shu o'rinni egallaydi
+  userId      String?
+  user        User?        @relation("InvitePlaceholder", fields: [userId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?        @relation("InviteCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  expiresAt   DateTime?
+  usedAt      DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@index([orgId])
+}
+
 model Mahalla {
-  id            String   @id @default(cuid())
-  name          String   // MFY nomi
-  chairmanName  String   // Rais F.I.Sh
-  phone         String   // Rais telefon raqami
-  sortOrder     Int      @default(0)
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  id           String       @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name         String       // MFY nomi
+  chairmanName String       // Rais F.I.Sh
+  phone        String       // Rais telefon raqami(lari)
+  sector       Int?         // sektor raqami (ixtiyoriy guruhlash)
+  sortOrder    Int          @default(0)
+  isActive     Boolean      @default(true)
   // Doimiy mas'ul xodim: yangi topshiriqda shu MFY vazifasi avtomatik unga beriladi
-  assignedToId  String?
-  assignedTo    User?    @relation("MahallaAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedToId String?
+  assignedTo   User?        @relation("MahallaAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdAt    DateTime     @default(now())
 
   callTasks CallTask[]
 
+  @@index([orgId, isActive])
   @@index([assignedToId])
-}
-
-// Ilovadan o'zgartiriladigan sozlamalar (masalan, xabarlar boradigan guruh ID'si)
-model Setting {
-  key       String   @id
-  value     String
-  updatedAt DateTime @updatedAt
 }
 
 model CallCampaign {
   id          String         @id @default(cuid())
-  title       String
-  description String?
+  orgId       String
+  org         Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  kind        CampaignKind   @default(OTHER)
+  title       String         // nima: yig'ilish/tadbir nomi yoki sababi
+  description String?        // qo'shimcha izoh
+  scheduledAt DateTime?      // qachon: yig'ilish/tadbir sanasi va vaqti
+  location    String?        // qayerda
   status      CampaignStatus @default(ACTIVE)
   createdById String
   createdBy   User           @relation("CampaignCreator", fields: [createdById], references: [id])
   createdAt   DateTime       @default(now())
+  closedAt    DateTime?
 
   tasks CallTask[]
+
+  @@index([orgId, status])
 }
 
 model CallTask {
-  id          String     @id @default(cuid())
-  campaignId  String
-  campaign    CallCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  mahallaId   String
-  mahalla     Mahalla    @relation(fields: [mahallaId], references: [id])
-  status      CallStatus @default(PENDING)
+  id           String       @id @default(cuid())
+  campaignId   String
+  campaign     CallCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  mahallaId    String
+  mahalla      Mahalla      @relation(fields: [mahallaId], references: [id])
+  status       CallStatus   @default(PENDING)
+  // Mas'ul xodim (MFY'dan olinadi)
   assignedToId String?
-  assignedTo  User?      @relation("TaskAssignee", fields: [assignedToId], references: [id])
-  calledAt    DateTime?
-  updatedAt   DateTime   @updatedAt
-  createdAt   DateTime   @default(now())
+  assignedTo   User?        @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  // Haqiqatda qo'ng'iroq qilgan kishi — boshqa xodim yordam bergan bo'lsa, mas'uldan farq qiladi
+  calledById   String?
+  calledBy     User?        @relation("TaskCaller", fields: [calledById], references: [id], onDelete: SetNull)
+  // Istisno holat sababi: "rais kasalxonada", "boshqa raqam berdi" va h.k.
+  note         String?
+  calledAt     DateTime?
+  updatedAt    DateTime     @updatedAt
+  createdAt    DateTime     @default(now())
 
   events CallEvent[]
 
   @@unique([campaignId, mahallaId])
 }
 
+// O'zgarishlar tarixi: kim, qachon, qaysi holatni qo'ydi (audit)
 model CallEvent {
   id         String     @id @default(cuid())
   callTaskId String
@@ -103,5 +190,6 @@ model CallEvent {
   userId     String
   user       User       @relation(fields: [userId], references: [id])
   status     CallStatus
+  note       String?
   createdAt  DateTime   @default(now())
 }

@@ -13,11 +13,11 @@ import type { Update } from "telegraf/types";
 import { prisma } from "./db.js";
 import { configureBotUi, createBot } from "./bot.js";
 import { setupSocket } from "./socket.js";
-import { createGroupNotifier } from "./groupNotify.js";
+import { createNotifiers } from "./groupNotify.js";
 import { DEV_AUTH_ENABLED } from "./authPlugin.js";
-import { authRoutes } from "./routes/auth.routes.js";
+import { meRoutes } from "./routes/me.routes.js";
 import { mahallaRoutes } from "./routes/mahalla.routes.js";
-import { userRoutes } from "./routes/users.routes.js";
+import { memberRoutes } from "./routes/members.routes.js";
 import { campaignRoutes } from "./routes/campaigns.routes.js";
 import { taskRoutes } from "./routes/tasks.routes.js";
 
@@ -71,16 +71,20 @@ async function main() {
   fastify.decorate("io", io);
 
   const bot = createBot(BOT_TOKEN!, FRONTEND_URL);
-  fastify.decorate(
-    "notifyGroup",
+  // BOT_MODE=off (lokal): Telegram'ga hech narsa yuborilmaydi — xabarlar logga yoziladi
+  const notifiers =
     BOT_MODE === "off"
-      ? async (html: string) => void fastify.log.info({ html }, "Guruh xabari (BOT_MODE=off, yuborilmadi)")
-      : createGroupNotifier(bot),
-  );
+      ? {
+          notifyGroup: async (orgId: string, html: string) => void fastify.log.info({ orgId, html }, "Guruh xabari (yuborilmadi)"),
+          notifyUser: async (telegramId: bigint, html: string) => void fastify.log.info({ telegramId: String(telegramId), html }, "Shaxsiy xabar (yuborilmadi)"),
+        }
+      : createNotifiers(bot, FRONTEND_URL);
+  fastify.decorate("notifyGroup", notifiers.notifyGroup);
+  fastify.decorate("notifyUser", notifiers.notifyUser);
 
-  await fastify.register(authRoutes);
+  await fastify.register(meRoutes);
   await fastify.register(mahallaRoutes);
-  await fastify.register(userRoutes);
+  await fastify.register(memberRoutes);
   await fastify.register(campaignRoutes);
   await fastify.register(taskRoutes);
 
@@ -133,7 +137,7 @@ async function main() {
   if (useWebhook) {
     await bot.telegram.setWebhook(`${FRONTEND_URL}${WEBHOOK_PATH}`, {
       secret_token: webhookSecret,
-      allowed_updates: ["message", "my_chat_member"],
+      allowed_updates: ["message", "callback_query", "my_chat_member"],
     });
     await configureBotUi(bot, FRONTEND_URL).catch((err) => fastify.log.error(err, "Bot menyusini sozlashda xatolik"));
     fastify.log.info(`Telegram bot webhook rejimida: ${FRONTEND_URL}${WEBHOOK_PATH}`);

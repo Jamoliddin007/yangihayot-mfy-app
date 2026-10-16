@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { getSocket } from "../lib/socket";
-import type { Campaign, CallTask, ResultStatus } from "../types";
+import type { Campaign, CallTask, CampaignKind, ResultStatus } from "../types";
+
+export interface NewCampaign {
+  kind: CampaignKind;
+  title: string;
+  description?: string;
+  scheduledAt?: string;
+  location?: string;
+}
 
 export function useCampaign() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -65,14 +73,15 @@ export function useCampaign() {
     };
   }, [refetch, applyTask]);
 
-  const startTask = useCallback(async (taskId: string) => {
-    const task = await api.post<CallTask>(`/api/tasks/${taskId}/start`);
+  // help=true — xodim boshqa xodimning MFY'siga yordam beryapti
+  const startTask = useCallback(async (taskId: string, help?: boolean) => {
+    const task = await api.post<CallTask>(`/api/tasks/${taskId}/start`, help ? { help } : undefined);
     applyTask(task);
     return task;
   }, [applyTask]);
 
-  const resultTask = useCallback(async (taskId: string, status: ResultStatus) => {
-    const task = await api.post<CallTask>(`/api/tasks/${taskId}/result`, { status });
+  const resultTask = useCallback(async (taskId: string, status: ResultStatus, note?: string, help?: boolean) => {
+    const task = await api.post<CallTask>(`/api/tasks/${taskId}/result`, { status, note: note || undefined, help });
     applyTask(task);
     return task;
   }, [applyTask]);
@@ -83,8 +92,14 @@ export function useCampaign() {
     return task;
   }, [applyTask]);
 
-  const createCampaign = useCallback(async (title: string, description?: string) => {
-    const created = await api.post<Campaign>("/api/campaigns", { title, description });
+  const saveNote = useCallback(async (taskId: string, note: string) => {
+    const task = await api.post<CallTask>(`/api/tasks/${taskId}/note`, { note });
+    applyTask(task);
+    return task;
+  }, [applyTask]);
+
+  const createCampaign = useCallback(async (input: NewCampaign) => {
+    const created = await api.post<Campaign>("/api/campaigns", input);
     setCampaign(created);
     return created;
   }, []);
@@ -94,5 +109,5 @@ export function useCampaign() {
     setCampaign((prev) => (prev && prev.id === id ? null : prev));
   }, []);
 
-  return { campaign, loading, error, refetch, startTask, resultTask, resetTask, createCampaign, closeCampaign };
+  return { campaign, loading, error, refetch, startTask, resultTask, saveNote, resetTask, createCampaign, closeCampaign };
 }
