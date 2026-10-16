@@ -399,10 +399,12 @@ Branch: `feature/assigned-mfy-redesign`
 - Admin endi `.env`dagi `PLATFORM_OWNER_TELEGRAM_ID` bilan qat'iy belgilanadi. Server har ishga tushganda bazani shunga moslaydi — boshqa hech kim admin bo'lib qola olmaydi. "Birinchi so'rovchi avtomatik egasi bo'ladi" qoidasi olib tashlandi.
 - Admin o'zi ochgan tashkilot tasdiqsiz faollashadi; qolganlar admin tasdig'ini kutadi.
 
-**Ma'lumotlarni tuzatish (serverda, zaxiradan keyin; skript repoga qo'shilmaydi — shaxsiy ma'lumot)**
-- Boshliq haqiqiy tashkilotga boshliq qilinadi; ishlatilmagan boshliq havolasi bekor qilinadi.
-- Xodimning Telegram akkaunti uning o'rniga (MFY'lari bilan) bog'lanadi.
-- Bo'sh nusxa tashkilotlar va ortiqcha sinov akkaunti o'chiriladi.
+**Ma'lumotlarni tuzatish — serverda bajarildi (zaxira: 2026-10-16 15:32; skript repoga qo'shilmadi — shaxsiy ma'lumot)**
+- Boshliq haqiqiy tashkilotga boshliq qilindi; ishlatilmagan boshliq havolasi bekor qilindi.
+- Xodimning Telegram akkaunti uning o'rniga (10 MFY bilan) bog'landi.
+- 3 ta bo'sh nusxa tashkilot va ortiqcha sinov akkaunti o'chirildi.
+- Natija: 1 tashkilot — 1 boshliq, 3 xodim (10 tadan MFY), admin faqat platforma egasi. Bitta xodim hali havola orqali kirmagan.
+- Server `.env`ga `PLATFORM_OWNER_TELEGRAM_ID` qo'shildi, yangi kod deploy qilindi.
 
 **Tekshiruv**
 - Admin sinovi: yangi foydalanuvchi admin emas; qo'lda admin qilingan begona akkaunt qayta ishga tushganda tushiriladi; begona so'rovi tasdiq kutadi.
