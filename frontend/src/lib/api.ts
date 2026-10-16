@@ -1,15 +1,9 @@
-import { retrieveLaunchParams } from "@telegram-apps/sdk";
+import { getInitDataRaw } from "./telegram";
 
-export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+export { getInitDataRaw };
 
-export function getInitDataRaw(): string | null {
-  try {
-    const { initDataRaw } = retrieveLaunchParams();
-    return initDataRaw ? String(initDataRaw) : null;
-  } catch {
-    return null;
-  }
-}
+// Bo'sh = same-origin: frontend backend'ning o'zidan (yoki Vite proxy orqali) beriladi
+export const API_URL = import.meta.env.VITE_API_URL ?? "";
 
 // Faqat development uchun: Telegram tashqarisida (brauzerda) sinash imkonini beradi.
 // Backendda NODE_ENV=production bo'lsa bu header e'tiborga olinmaydi.
@@ -25,9 +19,9 @@ export function clearDevTelegramId() {
   localStorage.removeItem("dev_telegram_id");
 }
 
-function buildHeaders(isFormData: boolean): Record<string, string> {
-  const headers: Record<string, string> = {};
-  if (!isFormData) headers["Content-Type"] = "application/json";
+function buildHeaders(hasJsonBody: boolean): Record<string, string> {
+  const headers: Record<string, string> = { "ngrok-skip-browser-warning": "true" };
+  if (hasJsonBody) headers["Content-Type"] = "application/json";
 
   const initData = getInitDataRaw();
   if (initData) {
@@ -41,10 +35,10 @@ function buildHeaders(isFormData: boolean): Record<string, string> {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const isFormData = options.body instanceof FormData;
+  const hasJsonBody = options.body !== undefined && !(options.body instanceof FormData);
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: { ...buildHeaders(isFormData), ...(options.headers as Record<string, string> | undefined) },
+    headers: { ...buildHeaders(hasJsonBody), ...(options.headers as Record<string, string> | undefined) },
   });
 
   if (!res.ok) {

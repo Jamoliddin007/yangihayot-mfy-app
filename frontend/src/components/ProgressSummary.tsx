@@ -18,15 +18,15 @@ export function ProgressSummary({ campaign }: { campaign: Campaign }) {
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-black/5">
+    <div className="rounded-xl bg-surface p-4 shadow-sm ring-1 ring-line">
       <div className="flex items-center justify-between">
-        <p className="font-semibold text-gray-900">{campaign.title}</p>
+        <p className="font-semibold text-ink">{campaign.title}</p>
         <span className="text-sm font-semibold text-emerald-600">
           {done}/{total}
         </span>
       </div>
 
-      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+      <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-soft">
         <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${percent}%` }} />
       </div>
 
@@ -39,11 +39,11 @@ export function ProgressSummary({ campaign }: { campaign: Campaign }) {
       </div>
 
       {Object.keys(byEmployee).length > 0 && (
-        <div className="mt-3 border-t border-gray-100 pt-2">
-          <p className="mb-1 text-xs font-medium text-gray-400">Xodimlar bo'yicha (band qilingan):</p>
+        <div className="mt-3 border-t border-line pt-2">
+          <p className="mb-1 text-xs font-medium text-hint">Xodimlar bo'yicha (band qilingan):</p>
           <div className="flex flex-wrap gap-1.5">
             {Object.entries(byEmployee).map(([name, count]) => (
-              <span key={name} className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+              <span key={name} className="rounded-full bg-soft px-2 py-0.5 text-xs text-muted">
                 {name}: {count}
               </span>
             ))}

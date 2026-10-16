@@ -27,26 +27,26 @@ export function CreateCampaignForm({ onCreate }: Props) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-black/5">
-      <p className="mb-1 font-semibold text-gray-900">Yangi vazifa yaratish</p>
-      <p className="mb-3 text-sm text-gray-500">Barcha faol mahalla raislari ro'yxatga qo'shiladi.</p>
+    <form onSubmit={handleSubmit} className="rounded-xl bg-surface p-4 shadow-sm ring-1 ring-line">
+      <p className="mb-1 font-semibold text-ink">Yangi vazifa yaratish</p>
+      <p className="mb-3 text-sm text-muted">Barcha faol mahalla raislari ro'yxatga qo'shiladi.</p>
       <div className="space-y-2">
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder='Masalan: "Bugun 09:00 majlis haqida xabar berish"'
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-line px-3 py-2 text-sm"
         />
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Qo'shimcha izoh (ixtiyoriy)"
           rows={2}
-          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          className="w-full rounded-lg border border-line px-3 py-2 text-sm"
         />
         <button
           disabled={submitting || !title.trim()}
-          className="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          className="w-full rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-on-accent disabled:opacity-50"
         >
           Boshlash
         </button>

@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import type { User } from "@prisma/client";
 import { prisma } from "./db.js";
 import { validateInitData } from "./telegramAuth.js";
 
@@ -15,44 +16,48 @@ declare module "fastify" {
   }
 }
 
-const isDev = process.env.NODE_ENV !== "production";
+// Dev-bypass (Telegram tashqarisida brauzerda test qilish) FAQAT DEV_AUTH=true aniq yoqilganda ishlaydi.
+// Avval NODE_ENV'ga bog'langan edi — NODE_ENV o'rnatilmasa (ngrok orqali ochiq server) har kim
+// boshliqning Telegram ID'sini header'ga yozib kira olardi. Endi standart holatda o'chiq.
+export const DEV_AUTH_ENABLED = process.env.DEV_AUTH === "true";
+
+function parseTelegramId(raw: string | number): bigint | null {
+  const str = String(raw);
+  return /^\d{1,20}$/.test(str) ? BigInt(str) : null;
+}
+
+// HTTP va Socket.io uchun umumiy: initData yoki dev ID orqali faol foydalanuvchini topadi
+export async function resolveUser(initData: string | undefined, devTelegramId: string | undefined): Promise<User | null> {
+  let telegramId: bigint | null = null;
+
+  if (DEV_AUTH_ENABLED && devTelegramId) {
+    telegramId = parseTelegramId(devTelegramId);
+  } else if (initData) {
+    const validated = validateInitData(initData, process.env.BOT_TOKEN!);
+    if (validated) telegramId = parseTelegramId(validated.user.id);
+  }
+
+  if (telegramId === null) return null;
+  const user = await prisma.user.findUnique({ where: { telegramId } });
+  return user && user.isActive ? user : null;
+}
 
 export async function authenticate(request: FastifyRequest, reply: FastifyReply) {
-  // FAQAT development muhitida: Telegram tashqarisida (brauzerda) test qilish uchun.
-  // Production serverda NODE_ENV=production o'rnatilgani sababli bu yo'l umuman ishlamaydi.
-  const devTelegramId = request.headers["x-dev-telegram-id"];
-  if (isDev && typeof devTelegramId === "string") {
-    const user = await prisma.user.findUnique({ where: { telegramId: BigInt(devTelegramId) } });
-    if (!user || !user.isActive) {
-      return reply.code(403).send({ error: "Dev foydalanuvchi topilmadi" });
-    }
-    request.currentUser = { id: user.id, telegramId: user.telegramId!, fullName: user.fullName, role: user.role };
-    return;
-  }
-
   const authHeader = request.headers["authorization"];
   const initData = authHeader?.startsWith("tma ") ? authHeader.slice(4) : undefined;
+  const devHeader = request.headers["x-dev-telegram-id"];
+  const devTelegramId = typeof devHeader === "string" ? devHeader : undefined;
 
-  if (!initData) {
-    return reply.code(401).send({ error: "initData yo'q" });
+  if (!initData && !(DEV_AUTH_ENABLED && devTelegramId)) {
+    return reply.code(401).send({ error: "Avtorizatsiya ma'lumoti yo'q" });
   }
 
-  const validated = validateInitData(initData, process.env.BOT_TOKEN!);
-  if (!validated) {
-    return reply.code(401).send({ error: "initData noto'g'ri" });
-  }
-
-  const user = await prisma.user.findUnique({ where: { telegramId: BigInt(validated.user.id) } });
-  if (!user || !user.isActive) {
+  const user = await resolveUser(initData, devTelegramId);
+  if (!user) {
     return reply.code(403).send({ error: "Ruxsat berilmagan foydalanuvchi" });
   }
 
-  request.currentUser = {
-    id: user.id,
-    telegramId: user.telegramId!,
-    fullName: user.fullName,
-    role: user.role,
-  };
+  request.currentUser = { id: user.id, telegramId: user.telegramId!, fullName: user.fullName, role: user.role };
 }
 
 export async function requireBoss(request: FastifyRequest, reply: FastifyReply) {

@@ -54,5 +54,10 @@ export function createBot(token: string, frontendUrl: string) {
     await ctx.reply(`Ushbu chat ID: ${ctx.chat.id}`);
   });
 
+  // Handler ichidagi xato (masalan, DB uzilishi) butun bot polling'ini to'xtatib qo'ymasligi uchun
+  bot.catch((err, ctx) => {
+    console.error(`Bot xatosi (update ${ctx.update.update_id}):`, err);
+  });
+
   return bot;
 }

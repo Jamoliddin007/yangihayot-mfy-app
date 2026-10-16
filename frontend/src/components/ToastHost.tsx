@@ -4,7 +4,7 @@ import { onToast, type ToastMessage } from "../lib/toast";
 const STYLES: Record<ToastMessage["type"], string> = {
   error: "bg-red-600 text-white",
   success: "bg-emerald-600 text-white",
-  info: "bg-gray-900 text-white",
+  info: "bg-accent text-on-accent",
 };
 
 export function ToastHost() {

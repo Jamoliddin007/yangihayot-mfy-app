@@ -5,10 +5,12 @@ import { prisma } from "../db.js";
 import { authenticate, requireBoss } from "../authPlugin.js";
 
 const mahallaSchema = z.object({
-  name: z.string().min(1),
-  chairmanName: z.string().min(1),
-  phone: z.string().min(5),
+  name: z.string().trim().min(1).max(120),
+  chairmanName: z.string().trim().min(1).max(120),
+  phone: z.string().trim().min(5).max(30),
 });
+
+const normalizeName = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ");
 
 export async function mahallaRoutes(fastify: FastifyInstance) {
   fastify.addHook("preHandler", authenticate);
@@ -43,6 +45,10 @@ export async function mahallaRoutes(fastify: FastifyInstance) {
     if (!file) {
       return reply.code(400).send({ error: "Fayl topilmadi" });
     }
+    // ExcelJS faqat .xlsx formatini o'qiydi (eski .xls emas)
+    if (!file.filename.toLowerCase().endsWith(".xlsx")) {
+      return reply.code(400).send({ error: "Faqat .xlsx formatidagi fayl qabul qilinadi" });
+    }
 
     const buffer = await file.toBuffer();
     const workbook = new ExcelJS.Workbook();
@@ -67,16 +73,23 @@ export async function mahallaRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: "Fayl bo'sh yoki format noto'g'ri (1-ustun MFY, 2-ustun F.I.Sh, 3-ustun telefon)" });
     }
 
+    // Takroriy importdan himoya: bazada (faol) yoki faylning o'zida bor MFY nomlari o'tkazib yuboriladi
+    const existing = await prisma.mahalla.findMany({ where: { isActive: true }, select: { name: true } });
+    const seen = new Set(existing.map((m) => normalizeName(m.name)));
+    const fresh = rows.filter((row) => {
+      const key = normalizeName(row.name);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
     const maxOrder = await prisma.mahalla.aggregate({ _max: { sortOrder: true } });
-    let order = maxOrder._max.sortOrder ?? 0;
+    const startOrder = maxOrder._max.sortOrder ?? 0;
 
-    const created = await prisma.$transaction(
-      rows.map((row) => {
-        order += 1;
-        return prisma.mahalla.create({ data: { ...row, sortOrder: order } });
-      }),
-    );
+    const { count } = await prisma.mahalla.createMany({
+      data: fresh.map((row, i) => ({ ...row, sortOrder: startOrder + i + 1 })),
+    });
 
-    return reply.code(201).send({ count: created.length });
+    return reply.code(201).send({ count, skipped: rows.length - fresh.length });
   });
 }

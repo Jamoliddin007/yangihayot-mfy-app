@@ -8,8 +8,8 @@ export function useCampaign() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Faqat birinchi yuklashda "Yuklanmoqda..." ko'rsatiladi; fondagi yangilashlar ekranni miltillatmaydi
   const refetch = useCallback(async () => {
-    setLoading(true);
     try {
       const data = await api.get<Campaign | null>("/api/campaigns/active");
       setCampaign(data);
@@ -21,51 +21,62 @@ export function useCampaign() {
     }
   }, []);
 
+  const applyTask = useCallback((task: CallTask) => {
+    setCampaign((prev) => {
+      if (!prev || prev.id !== task.campaignId) return prev;
+      return { ...prev, tasks: prev.tasks.map((t) => (t.id === task.id ? task : t)) };
+    });
+  }, []);
+
   useEffect(() => {
-    refetch();
+    void refetch();
 
     const socket = getSocket();
 
-    const handleTaskUpdate = (task: CallTask) => {
-      setCampaign((prev) => {
-        if (!prev || prev.id !== task.campaignId) return prev;
-        return {
-          ...prev,
-          tasks: prev.tasks.map((t) => (t.id === task.id ? task : t)),
-        };
-      });
+    // Yakunlangan vazifa ekrandan olib tashlanadi: xodimlar uchun "faol vazifa yo'q",
+    // boshliq uchun esa darhol "Yangi vazifa yaratish" formasi chiqadi
+    const handleCampaignClosed = (closed: { id: string }) => {
+      setCampaign((prev) => (prev && prev.id === closed.id ? null : prev));
     };
 
-    const handleCampaignCreated = (created: Campaign) => {
-      setCampaign(created);
+    // Internet uzilib qayta ulanganda o'tkazib yuborilgan eventlar o'rniga to'liq holatni qayta olamiz.
+    // Birinchi ulanishda refetch shart emas — yuqorida allaqachon chaqirilgan.
+    let connectedBefore = socket.connected;
+    const handleConnect = () => {
+      if (connectedBefore) void refetch();
+      connectedBefore = true;
     };
 
-    const handleCampaignClosed = (closed: Campaign) => {
-      setCampaign((prev) => (prev && prev.id === closed.id ? { ...prev, status: "CLOSED" } : prev));
-    };
-
-    socket.on("task:update", handleTaskUpdate);
-    socket.on("campaign:created", handleCampaignCreated);
+    socket.on("connect", handleConnect);
+    socket.on("task:update", applyTask);
+    socket.on("campaign:created", setCampaign);
     socket.on("campaign:closed", handleCampaignClosed);
 
     return () => {
-      socket.off("task:update", handleTaskUpdate);
-      socket.off("campaign:created", handleCampaignCreated);
+      socket.off("connect", handleConnect);
+      socket.off("task:update", applyTask);
+      socket.off("campaign:created", setCampaign);
       socket.off("campaign:closed", handleCampaignClosed);
     };
-  }, [refetch]);
+  }, [refetch, applyTask]);
 
   const startTask = useCallback(async (taskId: string) => {
-    return api.post<CallTask>(`/api/tasks/${taskId}/start`);
-  }, []);
+    const task = await api.post<CallTask>(`/api/tasks/${taskId}/start`);
+    applyTask(task);
+    return task;
+  }, [applyTask]);
 
   const resultTask = useCallback(async (taskId: string, status: Extract<CallStatus, "REACHED" | "NO_ANSWER" | "PHONE_OFF">) => {
-    return api.post<CallTask>(`/api/tasks/${taskId}/result`, { status });
-  }, []);
+    const task = await api.post<CallTask>(`/api/tasks/${taskId}/result`, { status });
+    applyTask(task);
+    return task;
+  }, [applyTask]);
 
   const resetTask = useCallback(async (taskId: string) => {
-    return api.post<CallTask>(`/api/tasks/${taskId}/reset`);
-  }, []);
+    const task = await api.post<CallTask>(`/api/tasks/${taskId}/reset`);
+    applyTask(task);
+    return task;
+  }, [applyTask]);
 
   const createCampaign = useCallback(async (title: string, description?: string) => {
     const created = await api.post<Campaign>("/api/campaigns", { title, description });
@@ -75,7 +86,7 @@ export function useCampaign() {
 
   const closeCampaign = useCallback(async (id: string) => {
     await api.post(`/api/campaigns/${id}/close`);
-    setCampaign((prev) => (prev && prev.id === id ? { ...prev, status: "CLOSED" } : prev));
+    setCampaign((prev) => (prev && prev.id === id ? null : prev));
   }, []);
 
   return { campaign, loading, error, refetch, startTask, resultTask, resetTask, createCampaign, closeCampaign };

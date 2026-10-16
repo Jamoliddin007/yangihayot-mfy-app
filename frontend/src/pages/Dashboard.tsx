@@ -7,6 +7,7 @@ import { CreateCampaignForm } from "../components/CreateCampaignForm";
 import { ManageEmployees } from "../components/ManageEmployees";
 import { ManageMahalla } from "../components/ManageMahalla";
 import { showToast } from "../lib/toast";
+import { confirmAction } from "../lib/telegram";
 
 type Tab = "tasks" | "employees" | "mahalla";
 
@@ -21,6 +22,7 @@ export function Dashboard({ user }: { user: CurrentUser }) {
 
   const handleClose = async () => {
     if (!campaign) return;
+    if (!(await confirmAction(`"${campaign.title}" vazifasini yakunlaysizmi? Xodimlar boshqa qo'ng'iroq belgilay olmaydi.`))) return;
     try {
       await closeCampaign(campaign.id);
       showToast("Vazifa yakunlandi", "success");
@@ -30,19 +32,19 @@ export function Dashboard({ user }: { user: CurrentUser }) {
   };
 
   return (
-    <div className="min-h-full bg-gray-50 pb-8">
-      <header className="sticky top-0 z-10 border-b border-gray-100 bg-white/90 px-4 py-3 backdrop-blur">
+    <div className="min-h-full bg-page pb-8">
+      <header className="sticky top-0 z-10 border-b border-line bg-surface/90 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-base font-bold text-gray-900">Yangihayot MFY Uyushmasi</h1>
-            <p className="text-xs text-gray-400">
+            <h1 className="text-base font-bold text-ink">Yangihayot MFY Uyushmasi</h1>
+            <p className="text-xs text-hint">
               {user.fullName} · {ROLE_LABEL[user.role]}
             </p>
           </div>
         </div>
 
         {user.role === "BOSS" && (
-          <div className="mt-3 flex gap-1.5 rounded-lg bg-gray-100 p-1">
+          <div className="mt-3 flex gap-1.5 rounded-lg bg-soft p-1">
             {(
               [
                 ["tasks", "Vazifalar"],
@@ -54,7 +56,7 @@ export function Dashboard({ user }: { user: CurrentUser }) {
                 key={key}
                 onClick={() => setTab(key)}
                 className={`flex-1 rounded-md py-1.5 text-sm font-medium transition ${
-                  tab === key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
+                  tab === key ? "bg-surface text-ink shadow-sm" : "text-muted"
                 }`}
               >
                 {label}
@@ -67,13 +69,13 @@ export function Dashboard({ user }: { user: CurrentUser }) {
       <main className="mx-auto max-w-xl space-y-3 px-4 py-4">
         {tab === "tasks" && (
           <>
-            {loading && <p className="text-center text-sm text-gray-400">Yuklanmoqda...</p>}
+            {loading && <p className="text-center text-sm text-hint">Yuklanmoqda...</p>}
 
             {!loading && !campaign && user.role === "BOSS" && <CreateCampaignForm onCreate={createCampaign} />}
 
             {!loading && !campaign && user.role === "EMPLOYEE" && (
-              <div className="rounded-xl bg-white p-6 text-center shadow-sm ring-1 ring-black/5">
-                <p className="text-gray-500">Hozircha faol vazifa yo'q.</p>
+              <div className="rounded-xl bg-surface p-6 text-center shadow-sm ring-1 ring-line">
+                <p className="text-muted">Hozircha faol vazifa yo'q.</p>
               </div>
             )}
 
@@ -84,7 +86,7 @@ export function Dashboard({ user }: { user: CurrentUser }) {
                 {user.role === "BOSS" && campaign.status === "ACTIVE" && (
                   <button
                     onClick={handleClose}
-                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600"
+                    className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm font-medium text-muted"
                   >
                     Vazifani yakunlash
                   </button>

@@ -64,29 +64,30 @@ export const STATUS_LABEL: Record<CallStatus, string> = {
 };
 
 export const STATUS_STYLE: Record<CallStatus, { dot: string; card: string; badge: string }> = {
+  // Shaffof (x/10, x/15) fonlar kunduzgi va tungi mavzuda bir xil yaxshi ko'rinadi
   PENDING: {
     dot: "bg-red-500",
-    card: "border-l-4 border-l-red-400 bg-white",
-    badge: "bg-red-100 text-red-700",
+    card: "border-l-4 border-l-red-400 bg-surface",
+    badge: "bg-red-500/15 text-red-600",
   },
   IN_PROGRESS: {
     dot: "bg-amber-500",
-    card: "border-l-4 border-l-amber-400 bg-amber-50/40",
-    badge: "bg-amber-100 text-amber-700",
+    card: "border-l-4 border-l-amber-400 bg-amber-500/10",
+    badge: "bg-amber-500/15 text-amber-600",
   },
   REACHED: {
     dot: "bg-emerald-500",
-    card: "border-l-4 border-l-emerald-400 bg-emerald-50/40",
-    badge: "bg-emerald-100 text-emerald-700",
+    card: "border-l-4 border-l-emerald-400 bg-emerald-500/10",
+    badge: "bg-emerald-500/15 text-emerald-600",
   },
   NO_ANSWER: {
     dot: "bg-orange-500",
-    card: "border-l-4 border-l-orange-400 bg-orange-50/40",
-    badge: "bg-orange-100 text-orange-700",
+    card: "border-l-4 border-l-orange-400 bg-orange-500/10",
+    badge: "bg-orange-500/15 text-orange-600",
   },
   PHONE_OFF: {
     dot: "bg-gray-400",
-    card: "border-l-4 border-l-gray-300 bg-gray-50",
-    badge: "bg-gray-100 text-gray-600",
+    card: "border-l-4 border-l-gray-400 bg-surface",
+    badge: "bg-gray-500/15 text-muted",
   },
 };
